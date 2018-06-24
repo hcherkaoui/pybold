@@ -1,0 +1,23 @@
+# ignore compiled files of any sort
+*.pyc
+*.c
+*.so
+*~
+.#*
+*.swp
+*.swo
+
+# ignore specific dir
+.DS_Store
+.cache
+build
+.pytest_cache
+
+# ignore example results
+*.png
+
+# ignore all type of zipped files
+*.zip
+*.nt.bz2
+*.tar.gz
+*.tgz
