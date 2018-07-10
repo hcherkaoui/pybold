@@ -128,8 +128,8 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
 
         # BOLD deconvolution
         H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
-        v0 = np.zeros(N)
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        v0 = est_i_s
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape, alpha=1.0e-3)
         est_i_s, _, _, _ = fista(
                     grad=grad, prox=prox_bold, v0=v0, w=None, nb_iter=2000,
                     early_stopping=True, verbose=verbose,
@@ -138,8 +138,9 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
 
         # HRF estimation
         H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
-        v0 = np.zeros(nb_atoms_hrf)
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
+        v0 = est_sparse_encoding_hrf
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape, alpha=1.0e-3)
         est_sparse_encoding_hrf, _, _, _ = fista(
                     grad=grad, prox=prox_hrf, v0=v0, w=None, nb_iter=2000,
                     early_stopping=True, verbose=verbose,
