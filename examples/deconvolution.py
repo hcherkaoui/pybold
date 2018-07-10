@@ -36,12 +36,12 @@ noisy_ar_s, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
 # deconvolve the signal
 lbda = 1.0e-4
 t0 = time.time()
-est_ar_s, est_ai_s, est_i_s = bold_deconvolution(
-                                 noisy_ar_s, tr=tr,
-                                 hrf=hrf,
-                                 lbda=lbda,
-                                                )
+est_ar_s, est_ai_s, est_i_s, J = bold_deconvolution(
+                                                    noisy_ar_s, tr=tr, hrf=hrf,
+                                                    lbda=lbda
+                                                    )
 delta_t = np.round(time.time() - t0, 3)
+runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
@@ -105,6 +105,18 @@ ax2.set_title("Estimated signals, TR={0}s".format(tr), fontsize=15)
 plt.tight_layout()
 
 filename = "bold_signal.png"
+filename = os.path.join(dirname, filename)
+print("Saving plot under '{0}'".format(filename))
+plt.savefig(filename)
+
+# plot 2
+fig = plt.figure(2, figsize=(20, 10))
+plt.plot(runtimes, J)
+plt.xlabel("times (s)")
+plt.ylabel("cost function")
+plt.title("Evolution of the cost function")
+
+filename = "cost_function.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

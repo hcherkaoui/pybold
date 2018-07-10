@@ -63,8 +63,9 @@ params = {'noisy_ar_s': noisy_ar_s,
 
 t0 = time.time()
 results = bold_blind_deconvolution(**params)
-est_ar_s, est_ai_s, est_i_s, est_hrf, sparse_encoding_hrf = results
+est_ar_s, est_ai_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
 delta_t = np.round(time.time() - t0, 3)
+runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
@@ -156,6 +157,18 @@ plt.ylabel("ampl.")
 plt.title("Est. sparse encoding HRF", fontsize=20)
 
 filename = "sparse_encoding_hrf_{0}.png".format(true_hrf_time_length)
+filename = os.path.join(dirname, filename)
+print("Saving plot under '{0}'".format(filename))
+plt.savefig(filename)
+
+# plot 4
+fig = plt.figure(4, figsize=(20, 10))
+plt.plot(runtimes, J)
+plt.xlabel("times (s)")
+plt.ylabel("cost function")
+plt.title("Evolution of the cost function")
+
+filename = "cost_function.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

@@ -52,9 +52,11 @@ _, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
 ###############################################################################
 # Estimate the HRF
 t0 = time.time()
-est_hrf, sparse_encoding_hrf = hrf_sparse_encoding_estimation(
-                                    ai_s, ar_s, tr, hrf_dico, lbda=1.0e-4)
+est_hrf, sparse_encoding_hrf, J = hrf_sparse_encoding_estimation(
+                                    ai_s, ar_s, tr, hrf_dico, lbda=1.0e-4
+                                                                )
 delta_t = np.round(time.time() - t0, 1)
+runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
@@ -116,6 +118,18 @@ plt.legend()
 plt.title("Input signals, TR={0}s".format(tr), fontsize=20)
 
 filename = "bold_signal.png"
+filename = os.path.join(dirname, filename)
+print("Saving plot under '{0}'".format(filename))
+plt.savefig(filename)
+
+# plot 4
+fig = plt.figure(4, figsize=(20, 10))
+plt.plot(runtimes, J)
+plt.xlabel("times (s)")
+plt.ylabel("cost function")
+plt.title("Evolution of the cost function")
+
+filename = "cost_function.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

@@ -67,7 +67,7 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     prox = L1Norm(lbda)
     grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
 
-    x, _, _, _ = fista(
+    x, J, _, _ = fista(
                     grad=grad, prox=prox, v0=z0, w=None, nb_iter=999,
                     early_stopping=True, verbose=verbose,
                       )
@@ -75,7 +75,7 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     est_ai_s = Integ.op(x)
     est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
 
-    return est_ar_s, est_ai_s, est_i_s
+    return est_ar_s, est_ai_s, est_i_s, J
 
 
 def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
@@ -92,13 +92,13 @@ def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
     prox = L1Norm(lbda)
     grad = L2ResidualLinear(H, ar_s, z0.shape)
 
-    sparce_encoding_hrf, _, _, _ = fista(
+    sparce_encoding_hrf, J, _, _ = fista(
                     grad=grad, prox=prox, v0=z0, w=None, nb_iter=9999,
                     early_stopping=True, verbose=verbose,
                       )
     hrf = hrf_dico.op(sparce_encoding_hrf)
 
-    return hrf, sparce_encoding_hrf
+    return hrf, sparce_encoding_hrf, J
 
 
 def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
@@ -113,7 +113,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
     len_hrf, nb_atoms_hrf = hrf_dico.shape
 
     N = len(noisy_ar_s)
-    len_hrf
+    J = []
 
     if not isinstance(hrf_dico, Matrix):
         hrf_dico = Matrix(hrf_dico)
@@ -147,4 +147,12 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
-    return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf
+        # cost function
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        g_bold = np.sum(np.abs(est_i_s))
+        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+
+    J = np.array(J)
+
+    return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
