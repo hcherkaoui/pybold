@@ -2,7 +2,6 @@
 """ This module gathers the definition of the discret diff operator.
 """
 import numpy as np
-from scipy.interpolate import interp1d
 from .utils import spectral_radius_est
 
 
