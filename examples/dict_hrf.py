@@ -11,16 +11,15 @@ print(__doc__)
 # HRF dict
 tr = 0.1
 nb_time_deltas = 20
-hrf_dico, t_hrf, time_lengths, _ = gen_hrf_spm_dict(
-                                         tr=tr,
-                                         nb_time_deltas=nb_time_deltas)
+hrf_dico, t_hrf, hrf_params = gen_hrf_spm_dict(tr=tr,
+                                               nb_time_deltas=nb_time_deltas)
 
 ###############################################################################
 # plotting
 plt.figure(figsize=(20, 15))
 
 for idx, hrf in enumerate(hrf_dico.T):
-    label = r"$\Delta_t$ = {0} s".format(time_lengths[idx])
+    label = r"$\Delta_t$ = {0} s".format(hrf_params[idx])
     plt.plot(t_hrf, hrf, label=label)
 
 plt.legend()

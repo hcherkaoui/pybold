@@ -7,16 +7,16 @@ from pybold.data import gen_random_events
 
 ###############################################################################
 # generate the signal
-tr = 0.5
+tr = 1.0
 snr = 1.0
-dur_orig = 5  # minutes
-hrf_time_length = 30.0
+dur_orig = 4  # minutes
+hrf_time_length = 40.0
 params = {'dur': dur_orig,
           'tr': tr,
           'hrf_time_length': hrf_time_length,
-          'nb_events': 10,
+          'nb_events': 4,
           'avg_dur': 1,
-          'std_dur': 5,
+          'std_dur': 4,
           'overlapping': False,
           'snr': snr,
           'random_state': 0,
@@ -61,7 +61,7 @@ ax3.plot(t_hrf, hrf, label="Original HRF")
 ax3.set_xlabel("time (s)")
 ax3.set_ylabel("ampl.")
 ax3.legend()
-title = r"HRF, TR={0}s, $\Delta_t HRF$={1}s".format(tr, hrf_time_length)
+title = r"HRF, TR={0}s, $\Delta_t$={1}s".format(tr, hrf_time_length)
 ax3.set_title(title, fontsize=20)
 
 plt.tight_layout()
