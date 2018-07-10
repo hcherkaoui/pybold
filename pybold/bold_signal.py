@@ -122,7 +122,17 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
     prox_bold = L1Norm(lbda_bold)
     prox_hrf = L1Norm(lbda_hrf)
 
+    est_i_s = np.zeros(N)  # init spiky signal
+    est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
+
     bar = ProgressBar() if (verbose > 0) else NoProgressBar()
+
+    # init cost function value
+    r = np.sum(np.square(est_ar_s - noisy_ar_s))
+    g_bold = np.sum(np.abs(est_i_s))
+    g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+    J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
     for idx in bar(range(nb_iter)):
 
@@ -135,6 +145,13 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
                     early_stopping=True, verbose=verbose,
                         )
         est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        # cost function after deconvolution step
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        g_bold = np.sum(np.abs(est_i_s))
+        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
         # HRF estimation
         H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
@@ -148,7 +165,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
-        # cost function
+        # cost function after hrf step
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
         g_bold = np.sum(np.abs(est_i_s))
         g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
