@@ -1,5 +1,11 @@
 .. -*- mode: rst -*-
 
+|Travis|_
+
+.. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=master
+.. _Travis: https://travis-ci.com/CherkaouiHamza/pybold
+
+
 pyBOLD
 ======
 
@@ -17,16 +23,19 @@ Dependencies
 
 The required dependencies to use the software are:
 
-* setuptools
 * Joblib
 * Numpy
 * Progressbar
+* Matplotlib (for examples)
 
-If you are running the examples, matplotlib >= 1.3.1 is required.
 
-
-Install
+License
 =======
+All material is Free Software: BSD license (3 clause).
+
+
+Installation
+============
 
 In order to perform the installation, run the following command from the pybold directory::
 
@@ -39,6 +48,7 @@ To run all the tests, run the following command from the pybold directory::
 To run the example, run the following command from the example directory::
 
     python blind_deconvolution.py
+
 
 Development
 ===========

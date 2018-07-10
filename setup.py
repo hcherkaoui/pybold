@@ -71,7 +71,6 @@ if __name__ == "__main__":
               'Topic :: Scientific/Engineering',
               'Operating System :: POSIX',
               'Operating System :: Unix',
-              'Programming Language :: Python :: 2',
               'Programming Language :: Python :: 2.7',
           ],
           packages=find_packages(),
