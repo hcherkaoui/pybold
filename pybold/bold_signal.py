@@ -68,7 +68,7 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
 
     x, J, _, _ = fista(
-                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=999,
+                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=2000,
                     early_stopping=True, verbose=verbose,
                       )
     est_i_s = x
@@ -93,7 +93,7 @@ def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
     grad = L2ResidualLinear(H, ar_s, z0.shape)
 
     sparce_encoding_hrf, J, _, _ = fista(
-                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=9999,
+                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=2000,
                     early_stopping=True, verbose=verbose,
                       )
     hrf = hrf_dico.op(sparce_encoding_hrf)
