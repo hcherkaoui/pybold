@@ -32,7 +32,9 @@ class TestGradient(unittest.TestCase):
     def _yield_data(self):
         """ Yield data test case.
         """
-        random_state_s = [0, 66]
+        # caution random_state should be fixed but it could also systematically
+        # lead to failing signal generation, so this arg is carefully set
+        random_state_s = [6]
         dur = 5  # minutes
         tr_s = [0.5, 2.0]
         hrf_time_length_s = [10.0, 50.0]
@@ -49,7 +51,6 @@ class TestGradient(unittest.TestCase):
                            }
             hrf_params = {'tr': tr,
                           'time_length': hrf_time_length,
-                          'onset': 0.0,
                           }
 
             ai_s, _, _ = gen_ai_s(**ai_s_params)

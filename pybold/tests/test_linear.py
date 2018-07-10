@@ -128,7 +128,7 @@ def _test_conv_and_linear(ai_s, tr):
     """ Helper to test conv and linear operator.
     """
     nb_atoms = 20
-    D_hrf, _, _, _ = gen_hrf_spm_dict(tr=tr, nb_time_deltas=nb_atoms)
+    D_hrf, _, _ = gen_hrf_spm_dict(tr=tr, nb_time_deltas=nb_atoms)
     alpha = np.zeros(nb_atoms)
     idx_chosen_atom = 10
     alpha[idx_chosen_atom] = 1
@@ -156,7 +156,7 @@ def _test_adj_conv_and_linear(ai_s, tr):
     """ Helper to test adj conv and linear operator.
     """
     nb_atoms = 20
-    D_hrf, _, _, _ = gen_hrf_spm_dict(tr=tr, nb_time_deltas=nb_atoms)
+    D_hrf, _, _ = gen_hrf_spm_dict(tr=tr, nb_time_deltas=nb_atoms)
     alpha = np.zeros(nb_atoms)
     idx_chosen_atom = 10
     alpha[idx_chosen_atom] = 1

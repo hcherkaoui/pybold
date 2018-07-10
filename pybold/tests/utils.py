@@ -12,24 +12,22 @@ class YieldData():
         """ Yield diracs signals on which to test the convolution functions.
         """
         dur = 1  # minutes
-        random_state_s = [0]
         tr_s = [0.1, 2.0]
         hrf_time_length_s = [10.0, 50.0]
-        onset_s = [0.0, 10.0]
-        listparams = [tr_s, hrf_time_length_s, onset_s]
+        listparams = [tr_s, hrf_time_length_s]
         for params in itertools.product(*listparams):
-            tr, hrf_time_length, onset = params
+            tr, hrf_time_length = params
             t = np.linspace(0, dur*60, int(dur*60 / tr))
-            onset_event = int(0.20 * dur * 60 / tr)  # place Dirac at 20% of dur
+            # place Dirac at 20% of dur
+            onset_event = int(0.20 * dur * 60 / tr)
             i_s = np.zeros_like(t)
             i_s[onset_event] = 1
             hrf_params = {'tr': tr,
                           'time_length': hrf_time_length,
-                          'onset': onset,
                           }
             hrf, _, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf, _, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
+            D_hrf, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
             yield i_s, hrf, D_hrf, alpha, tr
@@ -41,11 +39,10 @@ class YieldData():
         tr_s = [0.1, 2.0]
         dur_orig_s = [3, 10]  # minutes
         hrf_time_length_s = [10.0, 50.0]
-        onset_s = [0.0, 10.0]
         listparams = [random_state_s, tr_s, dur_orig_s,
-                      hrf_time_length_s, onset_s]
+                      hrf_time_length_s]
         for params in itertools.product(*listparams):
-            random_state, tr, dur_orig, hrf_time_length, onset = params
+            random_state, tr, dur_orig, hrf_time_length = params
             ai_s_params = {'dur': dur_orig,
                            'tr': tr,
                            # nb_events should be adapted to
@@ -53,18 +50,16 @@ class YieldData():
                            'nb_events': int(dur_orig/2),
                            'avg_dur': 1,
                            'std_dur': 5,
-                           'overlapping': False,
+                           'overlapping': True,
                            'random_state': random_state,
                            }
             hrf_params = {'tr': tr,
-                          'time_length': hrf_time_length,
-                          'onset': onset,
+                          'time_length': hrf_time_length
                           }
             ai_s, _, _ = gen_ai_s(**ai_s_params)
             hrf, _, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf, _, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
+            D_hrf, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
             yield ai_s, hrf, D_hrf, alpha, tr
-
