@@ -103,7 +103,7 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
     J = []
 
     # main loop
-    if verbose > 0:
+    if verbose > 1:
         print("running main loop...")
 
     for j in range(nb_iter):
@@ -128,7 +128,7 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
         cost_value = grad.cost(x_new) + prox.w * prox.cost(L.op(x_new))
         J.append(cost_value)
 
-        if verbose > 1:
+        if verbose > 2:
             print("Iteration {0} / {1}, "
                   "cost function = {2}".format(j+1, nb_iter, J[j]))
 
@@ -223,7 +223,7 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
     c = grad.grad_lipschitz_cst
 
     # main loop
-    if verbose > 0:
+    if verbose > 1:
         print("running main loop...")
 
     for j in range(nb_iter):
@@ -249,7 +249,7 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
         G.append(g)
         J.append(r + prox.w * g)
 
-        if verbose > 1:
+        if verbose > 2:
             print("Iteration {0} / {1}, "
                   "cost function = {2}".format(j+1, nb_iter, J[j], g))
 

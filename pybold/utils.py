@@ -3,7 +3,6 @@
 """
 import numpy as np
 from numpy.linalg import norm as norm_2
-from .padding import padd, unpadd
 
 
 def random_generator(random_state):
@@ -62,3 +61,10 @@ def max_min_norm(arrays, axis=1):
         return [_max_min_norm(a, axis=axis) for a in arrays]
     else:
         return _max_min_norm(arrays, axis=axis)
+
+
+class NoProgressBar:
+    """ Dummy class to disable ProgressBar effect.
+    """
+    def __call__(self, iterates):
+        return iterates
