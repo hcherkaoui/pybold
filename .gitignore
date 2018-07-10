@@ -7,6 +7,9 @@
 *.swp
 *.swo
 
+# coverage
+.coverage
+
 # ignore specific dir
 .DS_Store
 .cache

@@ -17,9 +17,10 @@ Dependencies
 
 The required dependencies to use the software are:
 
-* Python >= 2.7
 * setuptools
-* Numpy >= 1.8.2
+* Joblib
+* Numpy
+* Progressbar
 
 If you are running the examples, matplotlib >= 1.3.1 is required.
 

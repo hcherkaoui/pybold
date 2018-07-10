@@ -1,0 +1,20 @@
+language: python
+
+python:
+  - "2.7"
+
+install:
+  # for testing
+  - pip install python-coveralls
+  - pip install coverage
+  - pip install nose
+  # pybold dependencies
+  - pip install 'numpy>=1.14.0' 'scipy>=1.0.0' 'joblib>=0.11' 'progressbar>=2.5'
+
+script:
+  # run tests
+  - python setup.py install
+  - nosetests --with-coverage
+
+after_success:
+  - coveralls
