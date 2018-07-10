@@ -141,13 +141,12 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
                        "function with possibly new arguments.")
 
 
-def gen_random_events(dur=5, tr=1.0, hrf_onset=0.0, hrf_time_length=32.0,
+def gen_random_events(dur=5, tr=1.0, hrf=None, hrf_time_length=32.0,
                       nb_events=4, avg_dur=5, std_dur=1, middle_spike=False,
-                      overlapping=False, normalized_output=False, snr=1.0,
-                      nb_try=10000, nb_try_duration=10000,
-                      random_state=None):
-    """ Generate a 1d-array that represents an activity-inducing signal with
-    random events.
+                      overlapping=False, unitary_block=False,
+                      normalized_output=False, snr=1.0, nb_try=1000,
+                      nb_try_duration=1000, random_state=None):
+    """ Generate synthetic BOLD signal.
 
     Parameters
     ----------
@@ -156,6 +155,13 @@ def gen_random_events(dur=5, tr=1.0, hrf_onset=0.0, hrf_time_length=32.0,
 
     tr : float (default=1.0),
         Repetition time
+
+    hrf : np.ndarray (default=None),
+        Specified HRF, if None a SPM like HRF is used based on
+        hrf_time_length arg.
+
+    hrf_time_length : int (default=32.0),
+        Length of the SPM like HRF, ignored if hrf arg is provided.
 
     nb_events : int (default=4),
         Number of neural activity on-sets.
@@ -173,16 +179,19 @@ def gen_random_events(dur=5, tr=1.0, hrf_onset=0.0, hrf_time_length=32.0,
     overlapping : bool (default=False),
         Whether to authorize overlapping between on-sets.
 
+    unitary_block : bool (default=False),
+        force the block to have unitary amplitude.
+
     normalized_output : bool (default=False),
         Whether to max-min normalize or not.
 
     snr: float (default=1.0),
         SNR of the noisy BOLD signal.
 
-    nb_try : int (default=10000),
+    nb_try : int (default=1000),
         Number of try to generate the BOLD signal.
 
-    nb_try_duration : int (default=10000),
+    nb_try_duration : int (default=1000),
         Number of try to generate the each neural activity on-set.
 
     random_state : int or None (default=None),
@@ -210,6 +219,10 @@ def gen_random_events(dur=5, tr=1.0, hrf_onset=0.0, hrf_time_length=32.0,
     hrf : np.ndarray,
         HRF.
 
+    t_hrf : np.ndarray,
+        time scale HRF, if an HRF is specified then t_hrf is None and the user
+        should be aware of the corresponding time scale HRF.
+
     noise : np.ndarray,
         Noise.
 
@@ -217,16 +230,20 @@ def gen_random_events(dur=5, tr=1.0, hrf_onset=0.0, hrf_time_length=32.0,
     ai_s, i_s, t = gen_ai_s(dur=dur, tr=tr, nb_events=nb_events,
                             avg_dur=avg_dur, std_dur=std_dur,
                             middle_spike=middle_spike, overlapping=overlapping,
+                            unitary_block=unitary_block,
                             random_state=random_state)
 
-    hrf_coef, t_hrf, right_zero_padding = spm_hrf(tr=tr,
-                                                  time_length=hrf_time_length)
-    ar_s = simple_convolve(hrf_coef, ai_s)
+    if hrf is None:
+        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
+    else:
+        t_hrf = None
+
+    ar_s = simple_convolve(hrf, ai_s)
 
     noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
                                            random_state=random_state)
 
-    return noisy_ar_s, ar_s, ai_s, i_s, t, hrf_coef, t_hrf, noise
+    return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, t_hrf, noise
 
 
 def add_gaussian_noise(signal, snr, random_state=None):
