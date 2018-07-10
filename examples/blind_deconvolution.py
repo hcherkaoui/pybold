@@ -38,15 +38,15 @@ true_sparse_encoding_hrf[idx] = 1
 # data generation
 params = {'dur': dur,
           'tr': tr,
-          'hrf_time_length': 50.0,
+          'hrf': orig_hrf,
           'nb_events': 10,
           'avg_dur': 1,
           'std_dur': 5,
           'overlapping': True,
           'snr': snr,
-          'random_state': 99,
+          'random_state': 42,
           }
-noisy_ar_s, ar_s, ai_s, _, t, orig_hrf, _, _ = gen_random_events(**params)
+noisy_ar_s, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
 
 ###############################################################################
 # post-processing
@@ -57,7 +57,7 @@ params = {'noisy_ar_s': noisy_ar_s,
           'lbda_bold': 1.0e-5,
           'lbda_hrf': 3.0e-4,
           'init_hrf': init_hrf,
-          'nb_iter': 20,
+          'nb_iter': 50,
           'verbose': 1,
           }
 
@@ -135,8 +135,8 @@ fig = plt.figure(2, figsize=(15, 10))
 t_hrf = np.linspace(0, len(orig_hrf) * tr, len(orig_hrf))
 
 plt.plot(t_hrf, orig_hrf, '-b', label="Orig. HRF")
-plt.plot(t_hrf, est_hrf, '--g', label="Est. HRF")
-plt.plot(t_hrf, init_hrf, '-r', label="Init. HRF")
+plt.plot(t_hrf, est_hrf, '-*g', label="Est. HRF")
+plt.plot(t_hrf, init_hrf, '--r', label="Init. HRF")
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
@@ -150,11 +150,11 @@ plt.savefig(filename)
 # plot 3
 fig = plt.figure(3, figsize=(15, 10))
 
-plt.stem(sparse_encoding_hrf, '-b')
-plt.stem(true_sparse_encoding_hrf, '-b')
+plt.stem(sparse_encoding_hrf, '-b', label="Est. HRF")
 plt.xlabel("atoms")
 plt.ylabel("ampl.")
-plt.title("Est. sparse encoding HRF", fontsize=20)
+plt.legend()
+plt.title("Est. sparse encoding HRF\n(the atoms are not ordered)", fontsize=20)
 
 filename = "sparse_encoding_hrf_{0}.png".format(true_hrf_time_length)
 filename = os.path.join(dirname, filename)

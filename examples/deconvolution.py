@@ -46,11 +46,7 @@ print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # re-estimation of the amplitude
-est_ar_s, est_ai_s, est_i_s = i_s_ampl_corr(
-                                    est_i_s=est_i_s,
-                                    noisy_ar_s=noisy_ar_s,
-                                    hrf=hrf
-                                            )
+est_ar_s, est_ai_s, est_i_s = i_s_ampl_corr(est_i_s, noisy_ar_s, hrf)
 
 ###############################################################################
 # plotting
