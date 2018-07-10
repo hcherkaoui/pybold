@@ -220,8 +220,6 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
     J, R, G = [], [], []
     xx = []
 
-    c = grad.grad_lipschitz_cst
-
     # main loop
     if verbose > 1:
         print("running main loop...")
@@ -229,7 +227,7 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
     for j in range(nb_iter):
 
         # main update
-        z = prox.op(v - (1.0/c) * grad.op(v))
+        z = prox.op(v - grad.step * grad.op(v))
 
         # fista acceleration
         t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))

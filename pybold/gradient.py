@@ -27,6 +27,7 @@ class L2ResidualLinear:
         # estimation of the Lipschitz constant of the linear op
         self.op_norm_L = spectral_radius_est(self.L, self.x_shape)
         self.grad_lipschitz_cst = self.op_norm_L  # majoration
+        self.step = 1.0e-3  # XXX
 
     def cost(self, x):
         """ Return 1/2 || h.convolve(x) - y ||_2^2.
