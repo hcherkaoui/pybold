@@ -7,27 +7,6 @@ from .utils import random_generator
 from .convolution import simple_convolve
 
 
-def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0,
-                     nb_onsets=0, max_onset=1.0, min_onset=0.0):
-    """ Return a HRF dictionary based of the SPM model (difference of two
-    gamma functions)
-    """
-    hrf_dico = []
-    onsets = np.linspace(0.0, 1.0, nb_onsets)
-    time_lengths = np.linspace(10.0, 50.0, nb_time_deltas)
-    if nb_onsets != 0:
-        for onset in onsets:
-            for time_length in time_lengths:
-                hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length,
-                                        onset=onset)
-                hrf_dico.append(hrf)
-    else:
-        for time_length in time_lengths:
-            hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length)
-            hrf_dico.append(hrf)
-    return np.vstack(hrf_dico).T, t_hrf, time_lengths, onsets
-
-
 def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
              middle_spike=False, overlapping=False, unitary_block=False,
              random_state=None, nb_try=1000, nb_try_duration=1000):
@@ -334,3 +313,17 @@ def spm_hrf(tr, time_length=32.0):
     right_zero_padding = (np.abs(hrf) >= (1.0e-3 * np.max(hrf)))
 
     return hrf, time_stamps, right_zero_padding
+
+
+def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0):
+    """ Return a HRF dictionary based of the SPM model (difference of two
+    gamma functions)
+    """
+    hrf_dico = []
+    time_lengths = np.linspace(10.0, 50.0, nb_time_deltas)
+
+    for time_length in time_lengths:
+        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length)
+        hrf_dico.append(hrf)
+
+    return np.vstack(hrf_dico).T, t_hrf, list(time_lengths)
