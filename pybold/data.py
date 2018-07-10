@@ -292,7 +292,7 @@ def add_gaussian_noise(signal, snr, random_state=None):
     return noisy_signal, noise
 
 
-def spm_hrf(tr, time_length=32.0, onset=0.0):
+def spm_hrf(tr, time_length=32.0):
     """ Custom HRF.
     """
     if (time_length < 10.0) or (time_length > 50.0):
@@ -314,7 +314,6 @@ def spm_hrf(tr, time_length=32.0, onset=0.0):
     time_stamps = np.linspace(0, time_stamp_hrf, float(time_stamp_hrf) / dt)
     time_scale = time_stamp_hrf / time_length
     scaled_time_stamps = time_scale * time_stamps
-    scaled_time_stamps -= onset
 
     gamma_1 = gamma.pdf(scaled_time_stamps, delay / disp, dt / disp)
     gamma_2 = ratio_gamma * gamma.pdf(scaled_time_stamps,
@@ -330,8 +329,8 @@ def spm_hrf(tr, time_length=32.0, onset=0.0):
     time_stamps = time_stamps[::int(tr/dt)]
 
     # by default HRF is output with a 'time_stamp_hrf / tr' length
-    # returning 'right_zero_padding' allows the user to work only on the pattern
-    # of interest
+    # returning 'right_zero_padding' allows the user to work only on the
+    # pattern of interest
     right_zero_padding = (np.abs(hrf) >= (1.0e-3 * np.max(hrf)))
 
     return hrf, time_stamps, right_zero_padding
