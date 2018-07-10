@@ -2,15 +2,60 @@
 """ Main module that provide the blind deconvolution function.
 """
 import numpy as np
-from .data import spm_hrf, gen_hrf_spm_dict
-from .linear import Matrix, Diff, DiscretInteg, Conv, ConvAndLinear
+from .data import spm_hrf
+from .utils import NoProgressBar
+from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
 from .solvers import condatvu, fista
 from .proximity import L1Norm
+from .convolution import toeplitz_from_kernel
 
 
-def bold_deconvolution(noisy_ar_s, tr, hrf_time_length=32.0, lbda=1.0,
-                       verbose=0):
+def sparse_hrf_ampl_corr(sparse_hrf, ar_s, hrf_dico, ai_s, th=1.0e-2):
+    """ Re-estimate the amplitude of the spike signal.
+    """
+    # re-define the support
+    mask = (np.abs(sparse_hrf) > np.max(np.abs(sparse_hrf)) * th)
+
+    len_hrf, _ = hrf_dico.shape
+    H = toeplitz_from_kernel(ai_s, dim_in=len_hrf, dim_out=len(ai_s))
+    M = np.diag(mask)
+    A = H.dot(hrf_dico).dot(M)
+
+    # use the closed form solution
+    L = np.linalg.pinv(A.T.dot(A)).dot(A.T)
+
+    # solve J(i_s) = 0.5 * || H*Integ*M*i_s - M*y ||_2^2
+    corr_sparse_hrf = L.dot(ar_s)
+    corr_hrf = hrf_dico.dot(corr_sparse_hrf)
+
+    return corr_hrf, corr_sparse_hrf
+
+
+def i_s_ampl_corr(est_i_s, noisy_ar_s, hrf, th=1.0e-2):
+    """ Re-estimate the amplitude of the spike signal.
+    """
+    # re-define the support
+    mask = (np.abs(est_i_s) > np.max(np.abs(est_i_s)) * th)
+
+    H = toeplitz_from_kernel(hrf, dim_in=len(noisy_ar_s),
+                             dim_out=len(noisy_ar_s))
+    Integ = np.tril(np.ones((len(noisy_ar_s), len(noisy_ar_s))))
+    M = np.diag(mask)
+    A = H.dot(Integ).dot(M)
+
+    # use the closed form solution
+    L = np.linalg.pinv(A.T.dot(A)).dot(A.T)
+
+    # solve J(i_s) = 0.5 * || H*Integ*M*i_s - M*y ||_2^2
+    rest_i_s = L.dot(noisy_ar_s)
+    rest_ai_s = Integ.dot(rest_i_s)
+    rest_ar_s = H.dot(rest_ai_s)
+
+    return rest_ar_s, rest_ai_s, rest_i_s
+
+
+def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     """ Deconvolve the given BOLD signal.
     """
     hrf, _, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
