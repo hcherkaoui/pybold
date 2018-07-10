@@ -17,7 +17,8 @@ print(__doc__)
 ###############################################################################
 # generate data
 dur = 10  # minutes
-tr = 0.5
+tr = 1.0
+snr = 1.0
 
 # True HRF
 true_hrf_time_length = 50.0
@@ -44,16 +45,17 @@ params = {'dur': dur,
           'std_dur': 5,
           'overlapping': True,
           'unitary_block': True,
+          'snr': snr,
           'random_state': 0,
           }
-_, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
+noisy_ar_s, _, ai_s, _, t, _, _, _ = gen_random_events(**params)
 
 
 ###############################################################################
 # Estimate the HRF
 t0 = time.time()
 est_hrf, sparse_encoding_hrf, J = hrf_sparse_encoding_estimation(
-                                    ai_s, ar_s, tr, hrf_dico, lbda=1.0e-4
+                                    ai_s, noisy_ar_s, tr, hrf_dico, lbda=1.0e-4
                                                                 )
 delta_t = np.round(time.time() - t0, 1)
 runtimes = np.linspace(0, delta_t, len(J))
@@ -61,7 +63,8 @@ print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # re-estimation of the amplitude
-est_hrf, sparse_encoding_hrf = sparse_hrf_ampl_corr(sparse_encoding_hrf, ar_s,
+est_hrf, sparse_encoding_hrf = sparse_hrf_ampl_corr(sparse_encoding_hrf,
+                                                    noisy_ar_s,
                                                     hrf_dico, ai_s)
 
 ###############################################################################
@@ -106,10 +109,8 @@ plt.savefig(filename)
 # plot 3
 fig = plt.figure(3, figsize=(16, 8))
 
-plt.plot(t, ar_s, '-b', label="Denoised BOLD signal",
-         linewidth=2.0)
-plt.plot(t, ai_s, '-g', label="Block signal",
-         linewidth=2.0)
+plt.plot(t, noisy_ar_s, '-b', label="Noisy BOLD signal", linewidth=2.0)
+plt.plot(t, ai_s, '-g', label="Block signal", linewidth=2.0)
 
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
