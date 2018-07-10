@@ -29,8 +29,8 @@ def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0,
 
 
 def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
-             middle_spike=False, overlapping=False, random_state=None,
-             nb_try=100000, nb_try_duration=100000):
+             middle_spike=False, overlapping=False, unitary_block=False,
+             random_state=None, nb_try=1000, nb_try_duration=1000):
     """ Generate a Activity inducing signal.
     dur : int (default=5),
         The length of the BOLD signal (in minutes).
@@ -54,10 +54,13 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
     overlapping : bool (default=False),
         Whether to authorize overlapping between on-sets.
 
-    nb_try : int (default=10000),
+    unitary_block : bool (default=False),
+        force the block to have unitary amplitude.
+
+    nb_try : int (default=1000),
         Number of try to generate the BOLD signal.
 
-    nb_try_duration : int (default=10000),
+    nb_try_duration : int (default=1000),
         Number of try to generate the each neural activity on-set.
 
     random_state : int or None (default=None),
@@ -87,6 +90,8 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
     # for reproductibility
     r = random_generator(random_state)
 
+    nb_try = 1 if isinstance(r, np.random.RandomState) else nb_try
+
     # generate the block
     for _ in range(nb_try):
         offsets = r.randint(0, N, nb_events)
@@ -108,11 +113,12 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
 
         # check optional conditions
         if middle_spike:
-            ai_s[int(N/2)] += 1
+            ai_s[int(N/2)] += 1  # put a dirac une the center
         if (not overlapping) and any(ai_s > 1):
             continue  # overlapping events: retry
         if overlapping:
-            ai_s[ai_s > 1] = 1
+            if unitary_block:
+                ai_s[ai_s > 1] = 1  # normalized overlapping ai_s
         if middle_spike and any(ai_s[center_neighbors] > 0):
             continue  # middle-spike not isolated: retry
 
@@ -123,6 +129,10 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
         # '1/TR' sample rate
         i_s = np.append(0, ai_s[1:] - ai_s[:-1])
         t = np.linspace(0, dur*60, len(ai_s))
+
+        current_nb_events = (i_s > 0.5).sum()
+        if not overlapping and (current_nb_events != nb_events):
+            continue  # decimation step erase an event
 
         return ai_s, i_s, t
 
