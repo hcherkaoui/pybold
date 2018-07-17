@@ -3,7 +3,7 @@
 """
 import numpy as np
 from scipy.stats import gamma
-from .utils import random_generator
+from .utils import random_generator, fwhm
 from .convolution import simple_convolve
 
 
@@ -323,10 +323,12 @@ def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0):
     gamma functions)
     """
     hrf_dico = []
-    time_lengths = np.linspace(10.0, 50.0, nb_time_deltas)
+    fwhms = []
+    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
 
     for time_length in time_lengths:
         hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length)
+        fwhms.append(fwhm(t_hrf, hrf))
         hrf_dico.append(hrf)
 
-    return np.vstack(hrf_dico).T, t_hrf, list(time_lengths)
+    return np.vstack(hrf_dico).T, t_hrf, list(time_lengths), fwhms
