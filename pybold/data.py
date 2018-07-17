@@ -7,7 +7,7 @@ from .utils import random_generator
 from .convolution import simple_convolve
 
 
-def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
+def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
              middle_spike=False, overlapping=False, unitary_block=False,
              random_state=None, nb_try=1000, nb_try_duration=1000):
     """ Generate a Activity inducing signal.
@@ -300,8 +300,11 @@ def spm_hrf(tr, time_length=32.0):
                                       dt / u_disp)
 
     hrf = gamma_1 - gamma_2
-    # normalize and resample the HRF
+    # l2-unitary HRF
     hrf /= np.linalg.norm(hrf)
+    # to produce convolved ~ unitary block
+    hrf *= 10.0
+    # subsample HRF to tr
     hrf = hrf[::int(tr/dt)]
 
     # return the HRF associated time stamp (sampled as the HRF)
