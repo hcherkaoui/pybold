@@ -3,6 +3,16 @@
 """
 import numpy as np
 from numpy.linalg import norm as norm_2
+from scipy.interpolate import splrep, sproot
+
+
+def fwhm(hrf_t, hrf, k=3):
+    """Return the full width at half maximum.
+    """
+    half_max = np.amax(hrf) / 2.0
+    s = splrep(hrf_t, hrf - half_max, k=k)
+    roots = sproot(s)
+    return np.abs(roots[1] - roots[0])
 
 
 def random_generator(random_state):
