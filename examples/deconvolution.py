@@ -2,62 +2,65 @@
 """Simple deconvolution example.
 """
 import os
+import shutil
 import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_random_events, spm_hrf
-from pybold.bold_signal import bold_deconvolution, i_s_ampl_corr
-
-
-print(__doc__)
+from pybold.bold_signal import bold_deconvolution
 
 
 ###############################################################################
+# results management
+print(__doc__)
+
+d = datetime.now()
+dirname = 'results_deconvolution_{0}_{1}_{2}_{3}_{4}_{5}'.format(d.year,
+                                                                 d.month,
+                                                                 d.day,
+                                                                 d.hour,
+                                                                 d.minute,
+                                                                 d.second)
+if not os.path.exists(dirname):
+    os.makedirs(dirname)
+
+print("archiving '{0}' under '{1}'".format(__file__, dirname))
+shutil.copyfile(__file__, os.path.join(dirname, __file__))
+
+###############################################################################
 # generate data
-dur = 5  # minutes
+dur = 10  # minutes
 tr = 1.0
 snr = 1.0
-hrf_time_length = 32.0
-hrf, _, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
+hrf_time_length = 40.0
+orig_hrf, _, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
 params = {'dur': dur,
           'tr': tr,
-          'hrf_time_length': 50.0,
-          'nb_events': 10,
+          'hrf': orig_hrf,
+          'nb_events': 5,
           'avg_dur': 1,
-          'std_dur': 5,
-          'overlapping': True,
+          'std_dur': 3,
+          'overlapping': False,
           'snr': snr,
-          'random_state': 99,
+          'random_state': 9,
           }
 noisy_ar_s, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
 
 ###############################################################################
 # deconvolve the signal
-lbda = 1.0e-4
+lbda = 1.0
 t0 = time.time()
 est_ar_s, est_ai_s, est_i_s, J = bold_deconvolution(
-                                                    noisy_ar_s, tr=tr, hrf=hrf,
-                                                    lbda=lbda
+                                                    noisy_ar_s, tr=tr,
+                                                    hrf=orig_hrf, lbda=lbda
                                                     )
 delta_t = np.round(time.time() - t0, 3)
 runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
-# re-estimation of the amplitude
-est_ar_s, est_ai_s, est_i_s = i_s_ampl_corr(est_i_s, noisy_ar_s, hrf)
-
-###############################################################################
 # plotting
-d = datetime.now()
-dirname = 'results_deconvolution_{0}_{1}_{2}_{3}_{4}'.format(d.year,
-                                                             d.month,
-                                                             d.day,
-                                                             d.hour,
-                                                             d.minute)
-if not os.path.exists(dirname):
-    os.makedirs(dirname)
 
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))

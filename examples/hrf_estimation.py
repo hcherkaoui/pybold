@@ -2,17 +2,34 @@
 """Simple HRF estimation
 """
 import os
+import shutil
 import time
+import bisect
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_random_events, gen_hrf_spm_dict, spm_hrf
-from pybold.bold_signal import (hrf_sparse_encoding_estimation,
-                                sparse_hrf_ampl_corr)
+from pybold.bold_signal import hrf_sparse_encoding_estimation
+from pybold.utils import fwhm
 
 
+###############################################################################
+# results management
 print(__doc__)
 
+d = datetime.now()
+dirname = 'results_hrf_estimation_{0}_{1}_{2}_{3}_{4}_{5}'.format(d.year,
+                                                                  d.month,
+                                                                  d.day,
+                                                                  d.hour,
+                                                                  d.minute,
+                                                                  d.second)
+
+if not os.path.exists(dirname):
+    os.makedirs(dirname)
+
+print("archiving '{0}' under '{1}'".format(__file__, dirname))
+shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
@@ -21,18 +38,19 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_time_length = 50.0
-orig_hrf, _, _ = spm_hrf(tr, time_length=true_hrf_time_length)
+true_hrf_time_length = 20.0
+orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length)
 
 # dict of HRF
 nb_time_deltas = 500
-hrf_dico, _, hrf_lengths = gen_hrf_spm_dict(tr=tr,
-                                            nb_time_deltas=nb_time_deltas)
+hrf_dico, _, _, fwhms = gen_hrf_spm_dict(tr=tr,
+                                         nb_time_deltas=nb_time_deltas)
 
 # add the True HRF in the dict of HRF
-idx = 0
+orig_hrf_fwhm = fwhm(t_hrf, orig_hrf)
+bisect.insort(fwhms, orig_hrf_fwhm)
+idx = fwhms.index(orig_hrf_fwhm)
 hrf_dico = np.c_[hrf_dico[:, :idx], orig_hrf.T, hrf_dico[:, idx:]]
-hrf_lengths.insert(idx, true_hrf_time_length)
 true_sparse_encoding_hrf = np.zeros(hrf_dico.shape[1])
 true_sparse_encoding_hrf[idx] = 1
 
@@ -40,13 +58,12 @@ true_sparse_encoding_hrf[idx] = 1
 params = {'dur': dur,
           'tr': tr,
           'hrf': orig_hrf,
-          'nb_events': 20,
+          'nb_events': 5,
           'avg_dur': 1,
-          'std_dur': 5,
-          'overlapping': True,
-          'unitary_block': True,
+          'std_dur': 3,
+          'overlapping': False,
           'snr': snr,
-          'random_state': 0,
+          'random_state': 9,
           }
 noisy_ar_s, _, ai_s, _, t, _, _, _ = gen_random_events(**params)
 
@@ -54,38 +71,27 @@ noisy_ar_s, _, ai_s, _, t, _, _, _ = gen_random_events(**params)
 ###############################################################################
 # Estimate the HRF
 t0 = time.time()
+lbda = 1.0
 est_hrf, sparse_encoding_hrf, J = hrf_sparse_encoding_estimation(
-                                    ai_s, noisy_ar_s, tr, hrf_dico, lbda=1.0e-4
+                                                        ai_s, noisy_ar_s, tr,
+                                                        hrf_dico, lbda=lbda,
                                                                 )
 delta_t = np.round(time.time() - t0, 1)
 runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
-# re-estimation of the amplitude
-est_hrf, sparse_encoding_hrf = sparse_hrf_ampl_corr(sparse_encoding_hrf,
-                                                    noisy_ar_s,
-                                                    hrf_dico, ai_s)
-
-###############################################################################
 # plotting
-d = datetime.now()
-dirname = 'results_hrf_estimation_{0}_{1}_{2}_{3}_{4}'.format(d.year,
-                                                              d.month,
-                                                              d.day,
-                                                              d.hour,
-                                                              d.minute)
-if not os.path.exists(dirname):
-    os.makedirs(dirname)
 
 # plot 0
 fig = plt.figure(0, figsize=(20, 10))
-plt.stem(true_sparse_encoding_hrf, '-*r', label="Coef")
-plt.stem(sparse_encoding_hrf, label="Coef")
-plt.xlabel("atoms")
+plt.stem(fwhms, sparse_encoding_hrf, '-*b', label="Est. coef")
+plt.stem(fwhms, true_sparse_encoding_hrf, '-*r', label="Orig. coef")
+plt.xlabel("FWHM of the atoms")
 plt.ylabel("ampl.")
 plt.legend()
-plt.title("Coef", fontsize=20)
+title = ("Est. sparse encoding HRF\n ordered from tighter to the larger)")
+plt.title(title, fontsize=20)
 
 filename = "coef_hrf_{0}.png".format(true_hrf_time_length)
 filename = os.path.join(dirname, filename)
@@ -94,8 +100,10 @@ plt.savefig(filename)
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))
 
-plt.plot(orig_hrf, '-b', label="Orignal HRF", linewidth=2.0)
-plt.plot(est_hrf, '--g', label="Estimated HR", linewidth=2.0)
+label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
+plt.plot(orig_hrf, '-b', label=label, linewidth=2.0)
+label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
+plt.plot(est_hrf, '--g', label=label, linewidth=2.0)
 plt.xlabel("scans")
 plt.ylabel("ampl.")
 plt.legend()
