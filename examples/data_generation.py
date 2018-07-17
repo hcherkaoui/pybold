@@ -2,7 +2,8 @@
 """ Data generation example.
 """
 import matplotlib.pyplot as plt
-from pybold.data import gen_random_events
+from pybold.data import gen_random_events, spm_hrf
+from pybold.utils import fwhm
 
 
 ###############################################################################
@@ -11,9 +12,11 @@ tr = 1.0
 snr = 1.0
 dur_orig = 4  # minutes
 hrf_time_length = 40.0
+hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
+hrf_fwhm = fwhm(t_hrf, hrf)
 params = {'dur': dur_orig,
           'tr': tr,
-          'hrf_time_length': hrf_time_length,
+          'hrf': hrf,
           'nb_events': 4,
           'avg_dur': 1,
           'std_dur': 4,
@@ -23,7 +26,7 @@ params = {'dur': dur_orig,
           }
 
 res = gen_random_events(**params)
-noisy_ar_s, ar_s, ai_s, i_s, t, hrf, t_hrf, noise = res
+noisy_ar_s, ar_s, ai_s, i_s, t, _, _, noise = res
 
 ###############################################################################
 # plotting
@@ -61,7 +64,7 @@ ax3.plot(t_hrf, hrf, label="Original HRF")
 ax3.set_xlabel("time (s)")
 ax3.set_ylabel("ampl.")
 ax3.legend()
-title = r"HRF, TR={0}s, $\Delta_t$={1}s".format(tr, hrf_time_length)
+title = r"HRF, TR={0}s, FWHM={1:.2f}s".format(tr, fwhm(t_hrf, hrf))
 ax3.set_title(title, fontsize=20)
 
 plt.tight_layout()
