@@ -20,7 +20,7 @@ from pybold.data import gen_ai_s
 
 
 class TestCondat(unittest.TestCase):
-    @unittest.skip("deactivated till the amplitude problem is fixed")
+    @unittest.skip("deactivated till the amplitude problem is not fixed")
     def test_condat(self):
         """ Test the Condat-Vu algorithm.
         """

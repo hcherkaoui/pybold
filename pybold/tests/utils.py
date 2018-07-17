@@ -27,7 +27,7 @@ class YieldData():
                           }
             hrf, _, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
+            D_hrf, _, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
             yield i_s, hrf, D_hrf, alpha, tr
@@ -59,7 +59,7 @@ class YieldData():
             ai_s, _, _ = gen_ai_s(**ai_s_params)
             hrf, _, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
+            D_hrf, _, _, _ = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
             yield ai_s, hrf, D_hrf, alpha, tr
