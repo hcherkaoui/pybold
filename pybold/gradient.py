@@ -8,7 +8,7 @@ from .utils import spectral_radius_est
 class L2ResidualLinear:
     """ Gradient of 1/2 || L(x) - y ||_2^2 w.r.t to x
     """
-    def __init__(self, L, y, x_shape, alpha=None):
+    def __init__(self, L, y, x_shape, step=None):
         # L being the linear operator
         self.L = L
 
@@ -27,10 +27,10 @@ class L2ResidualLinear:
         # estimation of the Lipschitz constant of the linear op
         self.op_norm_L = spectral_radius_est(self.L, self.x_shape)
         self.grad_lipschitz_cst = self.op_norm_L  # majoration
-        if alpha is None:
+        if step is None:
             self.step = 1.0 / self.grad_lipschitz_cst
         else:
-            self.step = alpha
+            self.step = step
 
     def cost(self, x):
         """ Return 1/2 || h.convolve(x) - y ||_2^2.
