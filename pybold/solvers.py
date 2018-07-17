@@ -151,8 +151,8 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
     return x_new, np.array(J)
 
 
-def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
-          wind=8, tol=1.0e-8, verbose=0):
+def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
+          wind=8, tol=1.0e-8, fista_acceleration=True, verbose=0):
     """ FISTA algorithm.
     Minimize on x:
         grad.cost(x) - prox.w * prox.f(L.op(x))
@@ -185,6 +185,9 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
     tol : float (default=1.0e-6),
         Tolerance on the the early-stopping criterion.
 
+    fista_acceleration : bool (default=True),
+        Enable Nesterov's acceleration
+
     verbose : int (default=0),
         Verbose level.
 
@@ -200,7 +203,9 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
         raise ValueError("wind should at least 2, got {0}".format(wind))
 
     v = v0
-    z_old = np.zeros_like(v0)
+
+    if fista_acceleration:
+        z_old = np.zeros_like(v0)
 
     if w is None:
         w = np.ones_like(v0)
@@ -210,7 +215,8 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
     J = []
 
     # prepare the iterate
-    t = t_old = 1
+    if fista_acceleration:
+        t = t_old = 1
 
     # additional weights
     if w is None:
@@ -230,12 +236,16 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True,
         z = prox.op(v - grad.step * grad.op(v), w=grad.step)
 
         # fista acceleration
-        t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
-        v = z + (t_old-1)/t * (z - z_old)
+        if fista_acceleration:
+            t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
+            v = z + (t_old-1)/t * (z - z_old)
+        else:
+            v = z
 
         # update iterates
-        t_old = t
-        z_old = z
+        if fista_acceleration:
+            t_old = t
+            z_old = z
 
         # iterate update and saving
         xx.append(v)
