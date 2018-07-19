@@ -8,7 +8,7 @@ import bisect
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_random_events, gen_hrf_spm_dict, spm_hrf
+from pybold.data import gen_bloc_bold, gen_hrf_spm_dict, spm_hrf
 from pybold.bold_signal import hrf_sparse_encoding_estimation
 from pybold.utils import fwhm
 
@@ -65,7 +65,7 @@ params = {'dur': dur,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, _, ai_s, _, t, _, _, _ = gen_random_events(**params)
+noisy_ar_s, _, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 
 
 ###############################################################################

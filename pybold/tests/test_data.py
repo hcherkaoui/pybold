@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.linalg import norm as norm_2
 from pybold.convolution import simple_convolve
-from pybold.data import gen_random_events
+from pybold.data import gen_bloc_bold, spm_hrf
 
 
 # Here we mainly test the coherence of the API of the data generation function
@@ -19,7 +19,7 @@ def _test_data(res, snr, nb_events):
     - test the produce signal SNR
     - test if noise == (noisy_ar_s - ar_s)
     """
-    noisy_ar_s, ar_s, ai_s, i_s, _, hrf, _, noise = res
+    noisy_ar_s, ar_s, ai_s, i_s, _, hrf, noise = res
 
     # test if the 'ar_s = (hrf * ai_s)'
     ar_s_test = simple_convolve(hrf, ai_s)
@@ -64,9 +64,10 @@ class TestDataGeneration(unittest.TestCase):
         for params in itertools.product(*listparams):
             random_state, snr, tr, dur_orig, hrf_time_length = params
             nb_events = int(dur_orig/2)
+            hrf, _, _ = spm_hrf(tr, time_length=hrf_time_length)
             params = {'dur': dur_orig,
                       'tr': tr,
-                      'hrf_time_length': hrf_time_length,
+                      'hrf': hrf,
                       # if nb_events should be adapted to
                       # the length of the signal
                       'nb_events': nb_events,
@@ -76,7 +77,7 @@ class TestDataGeneration(unittest.TestCase):
                       'snr': snr,
                       'random_state': random_state,
                       }
-            res = gen_random_events(**params)
+            res = gen_bloc_bold(**params)
             yield res, snr, nb_events
 
     def test_data_gen(self):

@@ -7,6 +7,89 @@ from .utils import random_generator, fwhm
 from .convolution import simple_convolve
 
 
+def gen_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
+            random_state=None, nb_try=1000, nb_try_duration=1000):
+    """ Generate a Activity inducing signal.
+    dur : int (default=5),
+        The length of the BOLD signal (in minutes).
+
+    tr : float (default=1.0),
+        Repetition time
+
+    nb_events : int (default=4),
+        Number of neural activity on-sets.
+
+    avg_ampl : int (default=5),
+        The average of the amplitude of the events.
+
+    std_ampl : int (default=1),
+        The standard deviation of the amplitude of the events.
+
+    nb_try : int (default=1000),
+        Number of try to generate the BOLD signal.
+
+    nb_try_duration : int (default=1000),
+        Number of try to generate the each neural activity on-set.
+
+    random_state : int or None (default=None),
+        Whether to impose a seed on the random generation or not (for
+        reproductability).
+
+    Return
+    ------
+
+    i_s : np.ndarray,
+        Innovation signal.
+
+    t : np.ndarray,
+        time scale signal.
+
+    """
+    dt = 0.001  # to similate continious signal generation
+    N = int((dur * 60) / dt)
+    var_ampl = std_ampl**2
+
+    # for reproductibility
+    r = random_generator(random_state)
+
+    nb_try = 1 if isinstance(r, np.random.RandomState) else nb_try
+
+    # generate the block
+    for _ in range(nb_try):
+        offsets = r.randint(0, N, nb_events)
+        for _ in range(nb_try_duration):
+            ampls = avg_ampl + (var_ampl)*r.randn(nb_events)
+            if any(ampls < 0.0):
+                continue  # null or negative duration events: retry
+            else:
+                break
+
+        # place the block
+        i_s = np.zeros(N)
+        for offset, ampl in zip(offsets, ampls):
+            try:
+                i_s[offset] += ampl
+            except IndexError:
+                break
+
+        # subsample signal at 1/TR
+        i_s = i_s[::int(tr/dt)]
+
+        # generate innovation signal and the time scale on 'dur' duration with
+        # '1/TR' sample rate
+        t = np.linspace(0, dur*60, len(i_s))
+
+        current_nb_events = (i_s > 0.5).sum()
+        if (current_nb_events != nb_events):
+            continue  # decimation step erase an event
+
+        return i_s, t
+
+    raise RuntimeError("[Failure] Failed to produce an "
+                       "activity-inducing signal, please re-run gen_ai_s "
+                       "function with possibly new arguments.")
+
+
 def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
              middle_spike=False, overlapping=False, unitary_block=False,
              random_state=None, nb_try=1000, nb_try_duration=1000):
@@ -120,11 +203,10 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
                        "function with possibly new arguments.")
 
 
-def gen_random_events(dur=5, tr=1.0, hrf=None, hrf_time_length=32.0,
-                      nb_events=4, avg_dur=5, std_dur=1, middle_spike=False,
-                      overlapping=False, unitary_block=False,
-                      normalized_output=False, snr=1.0, nb_try=1000,
-                      nb_try_duration=1000, random_state=None):
+def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
+                  middle_spike=False, overlapping=False, unitary_block=False,
+                  snr=1.0, nb_try=1000, nb_try_duration=1000,
+                  random_state=None):
     """ Generate synthetic BOLD signal.
 
     Parameters
@@ -138,9 +220,6 @@ def gen_random_events(dur=5, tr=1.0, hrf=None, hrf_time_length=32.0,
     hrf : np.ndarray (default=None),
         Specified HRF, if None a SPM like HRF is used based on
         hrf_time_length arg.
-
-    hrf_time_length : int (default=32.0),
-        Length of the SPM like HRF, ignored if hrf arg is provided.
 
     nb_events : int (default=4),
         Number of neural activity on-sets.
@@ -161,17 +240,8 @@ def gen_random_events(dur=5, tr=1.0, hrf=None, hrf_time_length=32.0,
     unitary_block : bool (default=False),
         force the block to have unitary amplitude.
 
-    normalized_output : bool (default=False),
-        Whether to max-min normalize or not.
-
     snr: float (default=1.0),
         SNR of the noisy BOLD signal.
-
-    nb_try : int (default=1000),
-        Number of try to generate the BOLD signal.
-
-    nb_try_duration : int (default=1000),
-        Number of try to generate the each neural activity on-set.
 
     random_state : int or None (default=None),
         Whether to impose a seed on the random generation or not (for
@@ -212,17 +282,82 @@ def gen_random_events(dur=5, tr=1.0, hrf=None, hrf_time_length=32.0,
                             unitary_block=unitary_block,
                             random_state=random_state)
 
-    if hrf is None:
-        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
-    else:
-        t_hrf = None
-
     ar_s = simple_convolve(hrf, ai_s)
 
     noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
                                            random_state=random_state)
 
-    return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, t_hrf, noise
+    return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, noise
+
+
+def gen_events_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
+                    std_ampl=1, snr=1.0, random_state=None):
+    """ Generate synthetic BOLD signal.
+
+    Parameters
+    ----------
+    dur : int (default=5),
+        The length of the BOLD signal (in minutes).
+
+    tr : float (default=1.0),
+        Repetition time
+
+    hrf : np.ndarray (default=None),
+        Specified HRF, if None a SPM like HRF is used based on
+        hrf_time_length arg.
+
+    nb_events : int (default=4),
+        Number of neural activity on-sets.
+
+    avg_ampl : int (default=5),
+        The average of the amplitude of the events.
+
+    std_ampl : int (default=1),
+        The standard deviation of the amplitude of the events.
+
+    snr: float (default=1.0),
+        SNR of the noisy BOLD signal.
+
+    random_state : int or None (default=None),
+        Whether to impose a seed on the random generation or not (for
+        reproductability).
+
+    Return
+    ------
+
+    noisy_ar_s : np.ndarray,
+        Noisy activity related signal.
+
+    ar_s : np.ndarray,
+        Activity related signal.
+
+    i_s : np.ndarray,
+        Innovation signal.
+
+    t : np.ndarray,
+        time scale signal.
+
+    hrf : np.ndarray,
+        HRF.
+
+    t_hrf : np.ndarray,
+        time scale HRF, if an HRF is specified then t_hrf is None and the user
+        should be aware of the corresponding time scale HRF.
+
+    noise : np.ndarray,
+        Noise.
+
+    """
+    i_s, t = gen_i_s(dur=dur, tr=tr, nb_events=nb_events,
+                     avg_ampl=avg_ampl, std_ampl=std_ampl,
+                     random_state=random_state)
+
+    ar_s = simple_convolve(hrf, i_s)
+
+    noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
+                                           random_state=random_state)
+
+    return noisy_ar_s, ar_s, i_s, t, hrf, noise
 
 
 def add_gaussian_noise(signal, snr, random_state=None):

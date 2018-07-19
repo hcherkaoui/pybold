@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_random_events, spm_hrf
+from pybold.data import gen_bloc_bold, spm_hrf
 from pybold.bold_signal import bold_deconvolution
 
 
@@ -45,7 +45,7 @@ params = {'dur': dur,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, ar_s, ai_s, _, t, _, _, _ = gen_random_events(**params)
+noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 
 ###############################################################################
 # deconvolve the signal
