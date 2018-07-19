@@ -271,7 +271,7 @@ def add_gaussian_noise(signal, snr, random_state=None):
     return noisy_signal, noise
 
 
-def spm_hrf(tr, time_length=32.0):
+def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
     """ Custom HRF.
     """
     if (time_length < 10.0) or (time_length > 50.0):
@@ -300,10 +300,13 @@ def spm_hrf(tr, time_length=32.0):
                                       dt / u_disp)
 
     hrf = gamma_1 - gamma_2
-    # l2-unitary HRF
-    hrf /= np.linalg.norm(hrf)
-    # to produce convolved ~ unitary block
-    hrf *= 10.0
+
+    if normalized_hrf:
+        # l2-unitary HRF
+        hrf /= np.linalg.norm(hrf)
+        # to produce convolved ~ unitary block
+        hrf *= 10.0
+
     # subsample HRF to tr
     hrf = hrf[::int(tr/dt)]
 
@@ -318,7 +321,8 @@ def spm_hrf(tr, time_length=32.0):
     return hrf, time_stamps, right_zero_padding
 
 
-def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0):
+def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0,
+                     normalized_hrf=True):
     """ Return a HRF dictionary based of the SPM model (difference of two
     gamma functions)
     """
@@ -327,7 +331,8 @@ def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0):
     time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
 
     for time_length in time_lengths:
-        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length)
+        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length,
+                                normalized_hrf=normalized_hrf)
         fwhms.append(fwhm(t_hrf, hrf))
         hrf_dico.append(hrf)
 
