@@ -56,12 +56,19 @@ def i_s_ampl_corr(est_i_s, noisy_ar_s, hrf, th=1.0e-2):
     return rest_ar_s, rest_ai_s, rest_i_s
 
 
-def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
+def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
+                       verbose=0):
     """ Deconvolve the given BOLD signal.
     """
-    Integ = DiscretInteg()
-    H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
-                      dim_out=len(noisy_ar_s))
+    if model_type == 'bloc':
+        Integ = DiscretInteg()
+        H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
+                          dim_out=len(noisy_ar_s))
+    elif model_type == 'event':
+        H = Conv(hrf, dim_in=len(noisy_ar_s))
+    else:
+        raise ValueError("model_type should be in ['bloc', 'event']")
+
     z0 = np.zeros(len(noisy_ar_s))
 
     prox = L1Norm(lbda)
@@ -72,13 +79,20 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
                     early_stopping=True, verbose=verbose,
                       )
     est_i_s = x
-    est_ai_s = Integ.op(x)
-    est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
 
-    return est_ar_s, est_ai_s, est_i_s, J
+    if model_type == 'bloc':
+        est_ai_s = Integ.op(x)
+        est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
+
+        return est_ar_s, est_ai_s, est_i_s, J
+
+    elif model_type == 'event':
+        est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_i_s)
+
+        return est_ar_s, est_i_s, J
 
 
-def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
+def hrf_sparse_encoding_estimation(i_s, ar_s, tr, hrf_dico, lbda=None,
                                    verbose=0):
     """ HRF sparse-encoding estimation.
     """
@@ -86,7 +100,7 @@ def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
         hrf_dico = Matrix(hrf_dico)
     len_hrf, nb_atoms_hrf = hrf_dico.shape
 
-    H = ConvAndLinear(hrf_dico, ai_s, dim_in=len_hrf, dim_out=len(ai_s))
+    H = ConvAndLinear(hrf_dico, i_s, dim_in=len_hrf, dim_out=len(i_s))
     z0 = np.zeros(nb_atoms_hrf)
 
     prox = L1Norm(lbda)
@@ -103,7 +117,7 @@ def hrf_sparse_encoding_estimation(ai_s, ar_s, tr, hrf_dico, lbda=None,
 
 def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
                              lbda_hrf=1.0e-2, init_hrf=None, nb_iter=50,
-                             verbose=0):
+                             model_type='bloc', verbose=0):
     """ Blind deconvolution of the BOLD signal.
     """
     if init_hrf is None:
@@ -137,7 +151,14 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
     for idx in bar(range(nb_iter)):
 
         # BOLD deconvolution
-        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+        if model_type == 'bloc':
+            Integ = DiscretInteg()
+            H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+        elif model_type == 'event':
+            H = Conv(est_hrf, dim_in=N)
+        else:
+            raise ValueError("model_type should be in ['bloc', 'event']")
+
         v0 = est_i_s
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
         est_i_s, _, _, _ = fista(
@@ -173,4 +194,8 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
 
     J = np.array(J)
 
-    return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+    if model_type == 'bloc':
+        return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+
+    elif model_type == 'event':
+        return est_ar_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
