@@ -45,8 +45,7 @@ def gen_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
         time scale signal.
 
     """
-    dt = 0.001  # to similate continious signal generation
-    N = int((dur * 60) / dt)
+    N = int((dur * 60) / tr)
     var_ampl = std_ampl**2
 
     # for reproductibility
@@ -72,14 +71,11 @@ def gen_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
             except IndexError:
                 break
 
-        # subsample signal at 1/TR
-        i_s = i_s[::int(tr/dt)]
-
         # generate innovation signal and the time scale on 'dur' duration with
         # '1/TR' sample rate
         t = np.linspace(0, dur*60, len(i_s))
 
-        current_nb_events = (i_s > 0.5).sum()
+        current_nb_events = (i_s > 0.0).sum()
         if (current_nb_events != nb_events):
             continue  # decimation step erase an event
 
@@ -290,7 +286,7 @@ def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
     return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, noise
 
 
-def gen_events_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
+def gen_event_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
                     std_ampl=1, snr=1.0, random_state=None):
     """ Generate synthetic BOLD signal.
 
