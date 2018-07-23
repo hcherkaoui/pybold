@@ -92,15 +92,16 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
         return est_ar_s, est_i_s, J
 
 
-def hrf_sparse_encoding_estimation(i_s, ar_s, tr, hrf_dico, lbda=None,
+def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
                                    verbose=0):
     """ HRF sparse-encoding estimation.
     """
+    # ai_i_s: either ai_s or i_s signal
     if not isinstance(hrf_dico, Matrix):
         hrf_dico = Matrix(hrf_dico)
     len_hrf, nb_atoms_hrf = hrf_dico.shape
 
-    H = ConvAndLinear(hrf_dico, i_s, dim_in=len_hrf, dim_out=len(i_s))
+    H = ConvAndLinear(hrf_dico, ai_i_s, dim_in=len_hrf, dim_out=len(ai_i_s))
     z0 = np.zeros(nb_atoms_hrf)
 
     prox = L1Norm(lbda)
@@ -115,7 +116,7 @@ def hrf_sparse_encoding_estimation(i_s, ar_s, tr, hrf_dico, lbda=None,
     return hrf, sparce_encoding_hrf, J
 
 
-def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
+def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
                              lbda_hrf=1.0e-2, init_hrf=None, nb_iter=50,
                              model_type='bloc', verbose=0):
     """ Blind deconvolution of the BOLD signal.
@@ -165,8 +166,12 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
                     grad=grad, prox=prox_bold, v0=v0, w=None, nb_iter=10000,
                     early_stopping=True, verbose=verbose,
                         )
-        est_ai_s = Integ.op(est_i_s)
-        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        if model_type == 'bloc':
+            est_ai_s = Integ.op(est_i_s)
+            est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+        elif model_type == 'event':
+            est_ar_s = Conv(est_hrf, N).op(est_i_s)
 
         # cost function after deconvolution step
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
@@ -175,7 +180,10 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
         J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
         # HRF estimation
-        H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
+        if model_type == 'bloc':
+            H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
+        elif model_type == 'event':
+            H = ConvAndLinear(hrf_dico, est_i_s, dim_in=len_hrf, dim_out=N)
         est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
         v0 = est_sparse_encoding_hrf
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
@@ -184,7 +192,10 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2,
                     early_stopping=True, verbose=verbose,
                         )
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
-        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+        if model_type == 'bloc':
+            est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+        elif model_type == 'event':
+            est_ar_s = Conv(est_hrf, N).op(est_i_s)
 
         # cost function after hrf step
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
