@@ -10,13 +10,14 @@
 # coverage
 .coverage
 
-# ignore specific dir
+# ignore specific usual dir
 .DS_Store
 .cache
 build
 .pytest_cache
 
 # ignore example results
+*results_*
 *.png
 
 # ignore all type of zipped files
