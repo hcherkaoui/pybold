@@ -43,10 +43,6 @@ REQUIRED_MODULE_METADATA = (
         'min_version': '0.11',
         'required_at_installation': True,
         'install_info': _PYTA_INSTALL_MSG}),
-    ('progressbar', {
-        'min_version': '2.5',
-        'required_at_installation': True,
-        'install_info': _PYTA_INSTALL_MSG}),
     )
 
 

@@ -25,7 +25,6 @@ The required dependencies to use the software are:
 
 * Joblib
 * Numpy
-* Progressbar
 * Matplotlib (for examples)
 
 

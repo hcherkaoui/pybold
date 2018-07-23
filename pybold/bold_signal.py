@@ -1,10 +1,8 @@
 # coding: utf-8
 """ Main module that provide the blind deconvolution function.
 """
-from progressbar import ProgressBar
 import numpy as np
 from .data import spm_hrf
-from .utils import NoProgressBar
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
 from .solvers import fista
@@ -141,15 +139,13 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
     est_ar_s = np.zeros(N)  # thus.. init convolved signal
     est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
 
-    bar = ProgressBar() if (verbose > 0) else NoProgressBar()
-
     # init cost function value
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
     g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
     J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
-    for idx in bar(range(nb_iter)):
+    for idx in range(nb_iter):
 
         # BOLD deconvolution
         if model_type == 'bloc':
@@ -179,6 +175,10 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
         J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
+        if (verbose > 0):
+            print("cost function after deconvolution at iter "
+                  "{0} / {1} : {2}".format(idx+1, nb_iter, J[-1]))
+
         # HRF estimation
         if model_type == 'bloc':
             H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
@@ -202,6 +202,10 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         g_bold = np.sum(np.abs(est_i_s))
         g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
         J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+
+        if (verbose > 0):
+            print("cost function after HRF estimation at iter "
+                  "{0} / {1} : {2}".format(idx+1, nb_iter, J[-1]))
 
     J = np.array(J)
 
