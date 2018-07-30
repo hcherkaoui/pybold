@@ -3,7 +3,7 @@
 """
 import numpy as np
 from scipy.stats import gamma
-from .utils import random_generator, fwhm
+from .utils import random_generator
 from .convolution import simple_convolve
 
 
@@ -287,7 +287,7 @@ def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
 
 
 def gen_event_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
-                    std_ampl=1, snr=1.0, random_state=None):
+                   std_ampl=1, snr=1.0, random_state=None):
     """ Generate synthetic BOLD signal.
 
     Parameters
@@ -452,19 +452,59 @@ def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
     return hrf, time_stamps, right_zero_padding
 
 
-def gen_hrf_spm_dict(tr, nb_time_deltas, max_delta=50.0, min_delta=10.0,
-                     normalized_hrf=True):
+def gen_hrf_spm_dict(tr, nb_time_deltas=500, max_delta=50.0, min_delta=10.0):
     """ Return a HRF dictionary based of the SPM model (difference of two
     gamma functions)
     """
     hrf_dico = []
-    fwhms = []
     time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
 
     for time_length in time_lengths:
-        hrf, t_hrf, _ = spm_hrf(tr=tr, time_length=time_length,
-                                normalized_hrf=normalized_hrf)
-        fwhms.append(fwhm(t_hrf, hrf))
+        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
+                            normalized_hrf=False)
         hrf_dico.append(hrf)
 
-    return np.vstack(hrf_dico).T, t_hrf, list(time_lengths), fwhms
+    return np.vstack(hrf_dico).T
+
+
+def gen_hrf_spm_dict_normalized(tr, nb_time_deltas=500, max_delta=50.0,
+                                min_delta=10.0):
+    """ Return a HRF dictionary based of the SPM model (difference of two
+    gamma functions)
+    """
+    hrf_dico = []
+    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
+
+    for time_length in time_lengths:
+        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
+                            normalized_hrf=True)
+        hrf_dico.append(hrf)
+
+    return np.vstack(hrf_dico).T
+
+
+def gen_hrf_spm_basis(tr, nb_time_deltas=500, max_delta=50.0, min_delta=10.0,
+                      full_matrices=False, th=1.0e-3):
+    """ Return a HRF dictionary based of the SPM model (difference of two
+    gamma functions)
+    """
+    hrf_dico = []
+    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
+
+    for time_length in time_lengths:
+        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
+                            normalized_hrf=True)
+        hrf_dico.append(hrf)
+    hrf_dico = np.vstack(hrf_dico).T
+
+    if full_matrices:
+        U, s, V_T = np.linalg.svd(hrf_dico.T, full_matrices=True)
+        # remove insignificant eigen values
+        s[s <= (np.max(np.abs(s)) * th)] = 0.0
+        S = np.zeros((U.shape[0], V_T.shape[0]))
+        S[:len(s), :len(s)] = s
+        hrf_dico = U.dot(S).dot(V_T).T
+    else:
+        hrf_dico, _, _ = np.linalg.svd(hrf_dico, full_matrices=False)
+
+    return hrf_dico
