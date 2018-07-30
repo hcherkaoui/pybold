@@ -119,22 +119,28 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
                              model_type='bloc', verbose=0):
     """ Blind deconvolution of the BOLD signal.
     """
+    # cast hrf dictionnary/basis to the Matrix class used
+    if not isinstance(hrf_dico, Matrix):
+        hrf_dico = Matrix(hrf_dico)
+
+    # initialization of the HRF
     if init_hrf is None:
         est_hrf, _, _ = spm_hrf(tr=tr, time_length=30.0)  # init hrf
     else:
         est_hrf = init_hrf
-    len_hrf, nb_atoms_hrf = hrf_dico.shape
 
+    # get the usefull dimension encounter in the problem
+    len_hrf, nb_atoms_hrf = hrf_dico.shape
     N = len(noisy_ar_s)
+
     J = []
 
-    if not isinstance(hrf_dico, Matrix):
-        hrf_dico = Matrix(hrf_dico)
-
+    # definition of the usefull operator
     Integ = DiscretInteg()
     prox_bold = L1Norm(lbda_bold)
     prox_hrf = L1Norm(lbda_hrf)
 
+    # initialization of the signal of interess
     est_i_s = np.zeros(N)  # init spiky signal
     est_ar_s = np.zeros(N)  # thus.. init convolved signal
     est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
@@ -160,7 +166,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
         est_i_s, _, _, _ = fista(
                     grad=grad, prox=prox_bold, v0=v0, w=None, nb_iter=10000,
-                    early_stopping=True, verbose=verbose,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
 
         if model_type == 'bloc':
@@ -189,7 +195,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
         est_sparse_encoding_hrf, _, _, _ = fista(
                     grad=grad, prox=prox_hrf, v0=v0, w=None, nb_iter=10000,
-                    early_stopping=True, verbose=verbose,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
         if model_type == 'bloc':
