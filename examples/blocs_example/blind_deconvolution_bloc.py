@@ -4,12 +4,12 @@
 import os
 import shutil
 import time
-import bisect
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold, gen_hrf_spm_dict, spm_hrf
-from pybold.utils import fwhm
+from pybold.data import (gen_bloc_bold, gen_hrf_spm_basis,
+                         gen_hrf_spm_dict_normalized, spm_hrf)
+from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import bold_blind_deconvolution
 
 
@@ -39,22 +39,14 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_time_length = 20.0
-orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length)
+true_hrf_time_length = 10.0
+normalized_hrf = True
+orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length,
+                             normalized_hrf=normalized_hrf)
 
 # dict of HRF
-nb_time_deltas = 500
-hrf_dico, _, hrf_lengths, fwhms = gen_hrf_spm_dict(
-                                                tr=tr,
-                                                nb_time_deltas=nb_time_deltas
-                                                  )
-# add the True HRF in the dict of HRF
-orig_hrf_fwhm = fwhm(t_hrf, orig_hrf)
-bisect.insort(fwhms, orig_hrf_fwhm)
-idx = fwhms.index(orig_hrf_fwhm)
-hrf_dico = np.c_[hrf_dico[:, :idx], orig_hrf.T, hrf_dico[:, idx:]]
-true_sparse_encoding_hrf = np.zeros(hrf_dico.shape[1])
-true_sparse_encoding_hrf[idx] = 1
+#hrf_dico = gen_hrf_spm_basis(tr=tr)
+hrf_dico = gen_hrf_spm_dict_normalized(tr=tr)
 
 # data generation
 params = {'dur': dur,
@@ -89,6 +81,12 @@ est_ar_s, est_ai_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0:.2f} s".format(delta_t))
+
+###############################################################################
+# post-processing
+est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
+                                                 est_i_s, est_hrf])
+ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
 
 ###############################################################################
 # plotting
@@ -162,9 +160,8 @@ plt.savefig(filename)
 # plot 3
 fig = plt.figure(3, figsize=(15, 10))
 
-plt.stem(fwhms, sparse_encoding_hrf, '-*b', label="Est. coef")
-plt.stem(fwhms, true_sparse_encoding_hrf, '-*r', label="Orig. coef")
-plt.xlabel("FWHM of the atoms")
+plt.stem(sparse_encoding_hrf, '-*b', label="Est. coef")
+plt.xlabel("atoms")
 plt.ylabel("ampl.")
 plt.legend()
 plt.title("Est. sparse encoding HRF\n(ordered from tighter to the larger)",

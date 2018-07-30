@@ -4,11 +4,10 @@
 import os
 import shutil
 import time
-import bisect
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold, gen_hrf_spm_dict, spm_hrf
+from pybold.data import gen_bloc_bold, gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.bold_signal import hrf_sparse_encoding_estimation
 from pybold.utils import fwhm
 
@@ -43,16 +42,7 @@ orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length)
 
 # dict of HRF
 nb_time_deltas = 500
-hrf_dico, _, _, fwhms = gen_hrf_spm_dict(tr=tr,
-                                         nb_time_deltas=nb_time_deltas)
-
-# add the True HRF in the dict of HRF
-orig_hrf_fwhm = fwhm(t_hrf, orig_hrf)
-bisect.insort(fwhms, orig_hrf_fwhm)
-idx = fwhms.index(orig_hrf_fwhm)
-hrf_dico = np.c_[hrf_dico[:, :idx], orig_hrf.T, hrf_dico[:, idx:]]
-true_sparse_encoding_hrf = np.zeros(hrf_dico.shape[1])
-true_sparse_encoding_hrf[idx] = 1
+hrf_dico = gen_hrf_spm_dict_normalized(tr=tr, nb_time_deltas=nb_time_deltas)
 
 # data generation
 params = {'dur': dur,
@@ -71,7 +61,7 @@ noisy_ar_s, _, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 ###############################################################################
 # Estimate the HRF
 t0 = time.time()
-lbda = 1.0
+lbda = 0.5
 est_hrf, sparse_encoding_hrf, J = hrf_sparse_encoding_estimation(
                                                         ai_s, noisy_ar_s, tr,
                                                         hrf_dico, lbda=lbda,
@@ -85,8 +75,7 @@ print("Duration: {0} s".format(delta_t))
 
 # plot 0
 fig = plt.figure(0, figsize=(20, 10))
-plt.stem(fwhms, sparse_encoding_hrf, '-*b', label="Est. coef")
-plt.stem(fwhms, true_sparse_encoding_hrf, '-*r', label="Orig. coef")
+plt.stem(sparse_encoding_hrf, '-*b', label="Est. coef")
 plt.xlabel("FWHM of the atoms")
 plt.ylabel("ampl.")
 plt.legend()

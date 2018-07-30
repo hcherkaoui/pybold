@@ -4,12 +4,11 @@
 import os
 import shutil
 import time
-import bisect
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold, gen_hrf_spm_dict, spm_hrf
-from pybold.utils import fwhm
+from pybold.data import gen_event_bold, gen_hrf_spm_dict_normalized, spm_hrf
+from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import bold_blind_deconvolution
 
 
@@ -44,17 +43,7 @@ orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length)
 
 # dict of HRF
 nb_time_deltas = 500
-hrf_dico, _, hrf_lengths, fwhms = gen_hrf_spm_dict(
-                                                tr=tr,
-                                                nb_time_deltas=nb_time_deltas
-                                                  )
-# add the True HRF in the dict of HRF
-orig_hrf_fwhm = fwhm(t_hrf, orig_hrf)
-bisect.insort(fwhms, orig_hrf_fwhm)
-idx = fwhms.index(orig_hrf_fwhm)
-hrf_dico = np.c_[hrf_dico[:, :idx], orig_hrf.T, hrf_dico[:, idx:]]
-true_sparse_encoding_hrf = np.zeros(hrf_dico.shape[1])
-true_sparse_encoding_hrf[idx] = 1
+hrf_dico = gen_hrf_spm_dict_normalized(tr=tr, nb_time_deltas=nb_time_deltas)
 
 # data generation
 params = {'dur': dur,
@@ -75,8 +64,8 @@ init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf_dico': hrf_dico,
-          'lbda_bold': 0.2,
-          'lbda_hrf': 5.0,
+          'lbda_bold': 2.0,
+          'lbda_hrf': 1.0,
           'init_hrf': init_hrf,
           'nb_iter': 50,
           'model_type': 'event',
@@ -89,6 +78,10 @@ est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0:.2f} s".format(delta_t))
+###############################################################################
+# post-processing
+est_ar_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_i_s, est_hrf])
+ar_s, orig_hrf = inf_norm([ar_s, orig_hrf])
 
 ###############################################################################
 # plotting
@@ -160,8 +153,7 @@ plt.savefig(filename)
 # plot 3
 fig = plt.figure(3, figsize=(15, 10))
 
-plt.stem(fwhms, sparse_encoding_hrf, '-*b', label="Est. coef")
-plt.stem(fwhms, true_sparse_encoding_hrf, '-*r', label="Orig. coef")
+plt.stem(sparse_encoding_hrf, '-*b', label="Est. coef")
 plt.xlabel("FWHM of the atoms")
 plt.ylabel("ampl.")
 plt.legend()
