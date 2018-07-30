@@ -45,29 +45,30 @@ def spectral_radius_est(L, x_shape, nb_iter=30, tol=1.0e-6, verbose=False):
     return norm_2(x_new)
 
 
-def __max_min_norm(x):
-    """ Private helper for max-min normalization a list of arrays.
+def __inf_norm(x):
+    """ Private helper for inf-norm normalization a list of arrays.
     """
-    return x / (x.max() - x.min() + 1.0e-12)
+    return x / (np.max(np.abs(x)) + 1.0e-12)
 
 
-def _max_min_norm(arr, axis=1):
-    """ Private helper of max-min normalization a list of arrays.
+def _inf_norm(arr, axis=1):
+    """ Private helper of inf-norm normalization a list of arrays.
     """
     if arr.ndim == 2:
-        arr = np.apply_along_axis(func1d=__max_min_norm,
+        arr = np.apply_along_axis(func1d=__inf_norm,
                                   axis=axis, arr=arr)
         return np.vstack(arr)
     elif arr.ndim in [1, 3]:
-        return __max_min_norm(arr)
+        return __inf_norm(arr)
     else:
-        raise ValueError("max_min_norm only handle 1D, 2D or 3D arrays")
+        raise ValueError("inf-norm normalization only handle "
+                         "1D, 2D or 3D arrays")
 
 
-def max_min_norm(arrays, axis=1):
-    """ Max-min normalization a list of arrays.
+def inf_norm(arrays, axis=1):
+    """ Inf-norm normalization a list of arrays.
     """
     if isinstance(arrays, list):
-        return [_max_min_norm(a, axis=axis) for a in arrays]
+        return [_inf_norm(a, axis=axis) for a in arrays]
     else:
-        return _max_min_norm(arrays, axis=axis)
+        return _inf_norm(arrays, axis=axis)
