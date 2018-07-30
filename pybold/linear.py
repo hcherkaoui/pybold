@@ -45,10 +45,14 @@ class Identity():
 class Matrix():
     """ Linear operator based on a matrix operator.
     """
-    def __init__(self, M):
-        self.M = M
-        self.M_T = M.T
-        self.shape = M.shape
+    def __init__(self, M, M_T=None):
+        if M_T is None:
+            self.M = M
+            self.M_T = M.T
+        else:
+            self.M = M
+            self.M_T = M_T
+        self.shape = (self.M_T.shape[1], self.M.shape[1])
 
     def op(self, x):
         """ Return M.dot(x).
