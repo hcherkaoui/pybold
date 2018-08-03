@@ -21,7 +21,7 @@ def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
 
     # time_stamp_hrf: the (continious) time segment on which we represent all
     # the HRF. Can cut the signal too early. The time scale is second.
-    time_stamp_hrf = 60.  # secondes
+    time_stamp_hrf = 25.  # secondes
 
     # scale in time the HRF
     time_stamps = np.linspace(0, time_stamp_hrf, float(time_stamp_hrf) / dt)

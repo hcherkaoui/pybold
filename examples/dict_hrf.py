@@ -2,27 +2,24 @@
 """ Simple HRF dictionary generation example.
 """
 import matplotlib.pyplot as plt
-from pybold.data import gen_hrf_spm_dict
+import numpy as np
+from pybold.data import gen_hrf_spm_dict_normalized
 
 
 print(__doc__)
 
 ###############################################################################
 # HRF dict
-tr = 0.1
+tr = 1.0
 nb_time_deltas = 20
-hrf_dico, t_hrf, hrf_params, fwhms = gen_hrf_spm_dict(
-                                               tr=tr,
-                                               nb_time_deltas=nb_time_deltas
-                                                     )
+hrf_dico = gen_hrf_spm_dict_normalized(tr=tr, nb_time_deltas=nb_time_deltas)
+len_hrf = hrf_dico.shape[0]
+t_hrf = np.linspace(0, len_hrf, int(len_hrf/tr))
 
 ###############################################################################
 # plotting
-plt.figure(figsize=(20, 15))
-
 for idx, hrf in enumerate(hrf_dico.T):
-    label = r"FWHM={0:.2f}s".format(fwhms[idx])
-    plt.plot(t_hrf, hrf, label=label)
+    plt.plot(t_hrf, hrf)
 
 plt.legend()
 plt.xlabel("time (s)")
