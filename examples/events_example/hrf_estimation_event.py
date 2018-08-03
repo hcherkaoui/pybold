@@ -7,7 +7,8 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold, gen_hrf_spm_dict_normalized, spm_hrf
+from pybold.data import gen_event_bold
+from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.bold_signal import hrf_sparse_encoding_estimation
 from pybold.utils import fwhm
 

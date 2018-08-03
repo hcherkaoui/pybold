@@ -7,7 +7,8 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold, gen_hrf_spm_dict_normalized, spm_hrf
+from pybold.data import gen_event_bold
+from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import bold_blind_deconvolution
 
@@ -64,7 +65,7 @@ init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf_dico': hrf_dico,
-          'lbda_bold': 2.0,
+          'lbda_bold': 1.0,
           'lbda_hrf': 1.0,
           'init_hrf': init_hrf,
           'nb_iter': 50,

@@ -2,7 +2,8 @@
 """ Data generation example.
 """
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold, spm_hrf
+from pybold.data import gen_bloc_bold
+from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm
 
 

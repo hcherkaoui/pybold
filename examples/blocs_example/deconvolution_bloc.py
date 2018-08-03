@@ -7,7 +7,8 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold, spm_hrf
+from pybold.data import gen_bloc_bold
+from pybold.hrf_model import spm_hrf
 from pybold.bold_signal import bold_deconvolution
 
 
