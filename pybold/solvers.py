@@ -233,7 +233,7 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
     for j in range(nb_iter):
 
         # main update
-        z = prox.op(v - grad.step * grad.op(v), w=grad.step)
+        z = prox.op(v - grad.step * grad.op(v), w=1.0 / grad.grad_lipschitz_cst)
 
         # fista acceleration
         if fista_acceleration:
