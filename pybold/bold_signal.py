@@ -2,10 +2,10 @@
 """ Main module that provide the blind deconvolution function.
 """
 import numpy as np
-from .data import spm_hrf
+from .hrf_model import spm_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
-from .solvers import fista
+from .solvers import nesterov_forward_backward
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
 
@@ -72,7 +72,7 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
     prox = L1Norm(lbda)
     grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
 
-    x, J, _, _ = fista(
+    x, J = nesterov_forward_backward(
                     grad=grad, prox=prox, v0=z0, w=None, nb_iter=10000,
                     early_stopping=True, verbose=verbose,
                       )
@@ -105,7 +105,7 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
     prox = L1Norm(lbda)
     grad = L2ResidualLinear(H, ar_s, z0.shape)
 
-    sparce_encoding_hrf, J, _, _ = fista(
+    sparce_encoding_hrf, J = nesterov_forward_backward(
                     grad=grad, prox=prox, v0=z0, w=None, nb_iter=10000,
                     early_stopping=True, verbose=verbose,
                       )
@@ -114,9 +114,10 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
     return hrf, sparce_encoding_hrf, J
 
 
-def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
-                             lbda_hrf=1.0e-2, init_hrf=None, nb_iter=50,
-                             model_type='bloc', verbose=0):
+def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
+                             lbda_hrf=1.0, init_hrf=None, nb_iter=50,
+                             model_type='bloc', early_stopping=False, wind=24,
+                             tol=1.0e-24, verbose=0):
     """ Blind deconvolution of the BOLD signal.
     """
     # cast hrf dictionnary/basis to the Matrix class used
@@ -164,7 +165,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
 
         v0 = est_i_s
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-        est_i_s, _, _, _ = fista(
+        est_i_s, _ = nesterov_forward_backward(
                     grad=grad, prox=prox_bold, v0=v0, w=None, nb_iter=10000,
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
@@ -181,10 +182,6 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
         J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
-        if (verbose > 0):
-            print("cost function after deconvolution at iter "
-                  "{0} / {1} : {2}".format(idx+1, nb_iter, J[-1]))
-
         # HRF estimation
         if model_type == 'bloc':
             H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
@@ -193,11 +190,12 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
         v0 = est_sparse_encoding_hrf
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-        est_sparse_encoding_hrf, _, _, _ = fista(
+        est_sparse_encoding_hrf, _ = nesterov_forward_backward(
                     grad=grad, prox=prox_hrf, v0=v0, w=None, nb_iter=10000,
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
+
         if model_type == 'bloc':
             est_ar_s = Conv(est_hrf, N).op(est_ai_s)
         elif model_type == 'event':
@@ -210,9 +208,22 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0e-2, # noqa
         J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
 
         if (verbose > 0):
-            print("cost function after HRF estimation at iter "
-                  "{0} / {1} : {2}".format(idx+1, nb_iter, J[-1]))
+            print("global cost-function "
+                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
 
+        # early stopping
+        if early_stopping:
+            if idx > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(J[:-sub_wind_len])
+                new_j = np.mean(J[-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at {0}/{1}, global"
+                              " cost-function = {2:.4f}".format(idx, nb_iter,
+                                                                J[idx]))
+                    break
     J = np.array(J)
 
     if model_type == 'bloc':

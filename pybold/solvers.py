@@ -151,9 +151,9 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
     return x_new, np.array(J)
 
 
-def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
-          wind=8, tol=1.0e-8, fista_acceleration=True, verbose=0):
-    """ FISTA algorithm.
+def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
+                     early_stopping=True, wind=8, tol=1.0e-8, verbose=0):
+    """ Forward backward algorithm.
     Minimize on x:
         grad.cost(x) - prox.w * prox.f(L.op(x))
     e.g
@@ -185,9 +185,6 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
     tol : float (default=1.0e-6),
         Tolerance on the the early-stopping criterion.
 
-    fista_acceleration : bool (default=True),
-        Enable Nesterov's acceleration
-
     verbose : int (default=0),
         Verbose level.
 
@@ -202,29 +199,10 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
     if wind < 2:
         raise ValueError("wind should at least 2, got {0}".format(wind))
 
-    v = v0
-
-    if fista_acceleration:
-        z_old = np.zeros_like(v0)
-
-    if w is None:
-        w = np.ones_like(v0)
-
     # saving variables
+    v = v0
     xx = []
     J = []
-
-    # prepare the iterate
-    if fista_acceleration:
-        t = t_old = 1
-
-    # additional weights
-    if w is None:
-        w = np.ones_like(v)
-
-    # saving variables
-    J, R, G = [], [], []
-    xx = []
 
     # main loop
     if verbose > 1:
@@ -233,33 +211,17 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
     for j in range(nb_iter):
 
         # main update
-        z = prox.op(v - grad.step * grad.op(v), w=1.0 / grad.grad_lipschitz_cst)
-
-        # fista acceleration
-        if fista_acceleration:
-            t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
-            v = z + (t_old-1)/t * (z - z_old)
-        else:
-            v = z
-
-        # update iterates
-        if fista_acceleration:
-            t_old = t
-            z_old = z
+        v = prox.op(v - grad.step * grad.op(v), w=1.0/grad.grad_lipschitz_cst)
 
         # iterate update and saving
         xx.append(v)
         if len(xx) > wind:  # only hold the 'wind' last iterates
             xx = xx[1:]
-        r = grad.cost(v)
-        g = prox.cost(v)
-        R.append(r)
-        G.append(g)
-        J.append(r + prox.w * g)
+        J.append(grad.cost(v) + prox.w * prox.cost(v))
 
         if verbose > 2:
             print("Iteration {0} / {1}, "
-                  "cost function = {2}".format(j+1, nb_iter, J[j], g))
+                  "cost function = {2}".format(j+1, nb_iter, J[j]))
 
         # early stopping
         if early_stopping:
@@ -277,4 +239,111 @@ def fista(grad, prox, v0=None, w=None, nb_iter=9999, early_stopping=True, #noqa
                               "cost function = {2}".format(j, nb_iter, J[j]))
                     break
 
-    return v, np.array(J), np.array(R), np.array(G)
+    return v, np.array(J)
+
+
+
+def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
+                              early_stopping=True, wind=8, tol=1.0e-8,
+                              verbose=0):
+    """ Nesterov forward backward algorithm.
+    Minimize on x:
+        grad.cost(x) - prox.w * prox.f(L.op(x))
+    e.g
+        0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
+
+    Parameters
+    ----------
+    grad : object with op and adj method,
+        Gradient operator.
+
+    prox: object with __call__ method
+        Proximal operator.
+
+    v0 : np.ndarray (default=None),
+        Initial guess for the iterate.
+
+    w : np.ndarray (default=None),
+        Weights.
+
+    nb_iter : int (default=999),
+        Number of iterations.
+
+    early_stopping : bool (default=True),
+        Whether or not to activate early stopping.
+
+    wind : int (default=4),
+        Windows on which average the early-stopping criterion.
+
+    tol : float (default=1.0e-6),
+        Tolerance on the the early-stopping criterion.
+
+    verbose : int (default=0),
+        Verbose level.
+
+    Results
+    -------
+    X_new : np.ndarray,
+        Minimizer.
+
+    J : np.ndarray,
+        Cost function values.
+    """
+    if wind < 2:
+        raise ValueError("wind should at least 2, got {0}".format(wind))
+
+    v = v0
+
+    z_old = np.zeros_like(v0)
+
+    # saving variables
+    xx = []
+    J = []
+
+    # prepare the iterate
+    t = t_old = 1
+
+    # main loop
+    if verbose > 1:
+        print("running main loop...")
+
+    for j in range(nb_iter):
+
+        # main update
+        z = prox.op(v - grad.step * grad.op(v), w=1.0/grad.grad_lipschitz_cst)
+
+        # fista acceleration
+        t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
+        v = z + (t_old-1)/t * (z - z_old)
+
+        # update iterates
+        t_old = t
+        z_old = z
+
+        # iterate update and saving
+        xx.append(v)
+        if len(xx) > wind:  # only hold the 'wind' last iterates
+            xx = xx[1:]
+        J.append(grad.cost(v) + prox.w * prox.cost(v))
+
+        if verbose > 2:
+            print("Iteration {0} / {1}, "
+                  "cost function = {2}".format(j+1, nb_iter, J[j]))
+
+        # early stopping
+        if early_stopping:
+            if j > wind:
+                sub_wind_len = int(wind/2)
+                old_iter = np.mean(xx[:-sub_wind_len], axis=0)
+                new_iter = np.mean(xx[-sub_wind_len:], axis=0)
+                crit_num = prox.cost(new_iter - old_iter)
+                crit_deno = prox.cost(new_iter)
+                diff = crit_num / crit_deno
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping "
+                              "done at {0}/{1}, "
+                              "cost function = {2}".format(j, nb_iter, J[j]))
+                    break
+
+    return v, np.array(J)
