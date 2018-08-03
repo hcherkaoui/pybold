@@ -7,7 +7,8 @@ from scipy.optimize import check_grad
 from pybold.gradient import L2ResidualLinear
 from pybold.convolution import simple_convolve
 from pybold.linear import Conv
-from pybold.data import gen_ai_s, spm_hrf, add_gaussian_noise
+from pybold.data import gen_ai_s, add_gaussian_noise
+from pybold.hrf_model import spm_hrf
 
 
 def _test_gradient(ar_s, ai_s, hrf, random_state):

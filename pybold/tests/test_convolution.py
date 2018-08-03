@@ -7,7 +7,8 @@ from pybold.tests.utils import YieldData
 from pybold.convolution import (simple_convolve, simple_retro_convolve,
                                 spectral_convolve, spectral_retro_convolve,
                                 toeplitz_from_kernel)
-from pybold.data import spm_hrf, gen_ai_s
+from pybold.data import gen_ai_s
+from pybold.hrf_model import spm_hrf
 
 
 # Here we test three implementations for the convolution:

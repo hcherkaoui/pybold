@@ -6,7 +6,8 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.linalg import norm as norm_2
 from pybold.convolution import simple_convolve
-from pybold.data import gen_bloc_bold, spm_hrf
+from pybold.data import gen_bloc_bold
+from pybold.hrf_model import spm_hrf
 
 
 # Here we mainly test the coherence of the API of the data generation function

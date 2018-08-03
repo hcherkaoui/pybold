@@ -3,8 +3,8 @@
 """
 import itertools
 import numpy as np
-from ..data import spm_hrf, gen_ai_s
-from ..data import gen_hrf_spm_dict
+from ..data import gen_ai_s
+from ..hrf_model import spm_hrf, gen_hrf_spm_dict
 
 
 class YieldData():

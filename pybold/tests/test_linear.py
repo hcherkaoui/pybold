@@ -7,7 +7,7 @@ from pybold.linear import Matrix, Diff, Conv, ConvAndLinear, DiscretInteg
 from pybold.tests.utils import YieldData
 from pybold.convolution import (simple_convolve, simple_retro_convolve,
                                 toeplitz_from_kernel)
-from pybold.data import gen_hrf_spm_dict
+from pybold.hrf_model import gen_hrf_spm_dict
 
 
 class TestInteg(unittest.TestCase):
