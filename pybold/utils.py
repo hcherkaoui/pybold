@@ -12,7 +12,11 @@ def fwhm(hrf_t, hrf, k=3):
     half_max = np.amax(hrf) / 2.0
     s = splrep(hrf_t, hrf - half_max, k=k)
     roots = sproot(s)
-    return np.abs(roots[1] - roots[0])
+    try:
+        fwhm_ = np.abs(roots[1] - roots[0])
+    except IndexError:
+        fwhm_ = -1
+    return fwhm_
 
 
 def random_generator(random_state):
