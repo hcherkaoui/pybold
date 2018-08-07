@@ -103,7 +103,7 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
     J = []
 
     # main loop
-    if verbose > 1:
+    if verbose > 2:
         print("running main loop...")
 
     for j in range(nb_iter):
@@ -142,7 +142,7 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
                 crit_deno = prox.cost(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
-                    if verbose > 0:
+                    if verbose > 1:
                         print("\n-----> early-stopping "
                               "done at {0}/{1}, "
                               "cost function = {2}".format(j, nb_iter, J[j]))
@@ -205,7 +205,7 @@ def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
     J = []
 
     # main loop
-    if verbose > 1:
+    if verbose > 2:
         print("running main loop...")
 
     for j in range(nb_iter):
@@ -233,7 +233,7 @@ def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
                 crit_deno = prox.cost(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
-                    if verbose > 0:
+                    if verbose > 1:
                         print("\n-----> early-stopping "
                               "done at {0}/{1}, "
                               "cost function = {2}".format(j, nb_iter, J[j]))
@@ -304,7 +304,7 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
     t = t_old = 1
 
     # main loop
-    if verbose > 1:
+    if verbose > 2:
         print("running main loop...")
 
     for j in range(nb_iter):
@@ -340,7 +340,7 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
                 crit_deno = prox.cost(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
-                    if verbose > 0:
+                    if verbose > 1:
                         print("\n-----> early-stopping "
                               "done at {0}/{1}, "
                               "cost function = {2}".format(j, nb_iter, J[j]))
