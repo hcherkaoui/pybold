@@ -138,8 +138,8 @@ def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
                 sub_wind_len = int(wind/2)
                 old_iter = np.vstack(J[:-sub_wind_len]).mean()
                 new_iter = np.vstack(J[-sub_wind_len:]).mean()
-                crit_num = prox.cost(new_iter - old_iter)
-                crit_deno = prox.cost(new_iter)
+                crit_num = np.linalg.norm(new_iter - old_iter)
+                crit_deno = np.linalg.norm(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
                     if verbose > 1:
@@ -229,8 +229,8 @@ def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
                 sub_wind_len = int(wind/2)
                 old_iter = np.mean(xx[:-sub_wind_len], axis=0)
                 new_iter = np.mean(xx[-sub_wind_len:], axis=0)
-                crit_num = prox.cost(new_iter - old_iter)
-                crit_deno = prox.cost(new_iter)
+                crit_num = np.linalg.norm(new_iter - old_iter)
+                crit_deno = np.linalg.norm(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
                     if verbose > 1:
@@ -324,6 +324,7 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
         xx.append(v)
         if len(xx) > wind:  # only hold the 'wind' last iterates
             xx = xx[1:]
+
         J.append(grad.cost(v) + prox.w * prox.cost(v))
 
         if verbose > 2:
@@ -336,8 +337,8 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
                 sub_wind_len = int(wind/2)
                 old_iter = np.mean(xx[:-sub_wind_len], axis=0)
                 new_iter = np.mean(xx[-sub_wind_len:], axis=0)
-                crit_num = prox.cost(new_iter - old_iter)
-                crit_deno = prox.cost(new_iter)
+                crit_num = np.linalg.norm(new_iter - old_iter)
+                crit_deno = np.linalg.norm(new_iter)
                 diff = crit_num / crit_deno
                 if diff < tol:
                     if verbose > 1:
