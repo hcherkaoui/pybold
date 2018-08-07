@@ -243,7 +243,7 @@ def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
 
 
 
-def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
+def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
                               early_stopping=True, wind=8, tol=1.0e-8,
                               verbose=0):
     """ Nesterov forward backward algorithm.
@@ -262,9 +262,6 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
 
     v0 : np.ndarray (default=None),
         Initial guess for the iterate.
-
-    w : np.ndarray (default=None),
-        Weights.
 
     nb_iter : int (default=999),
         Number of iterations.
@@ -293,14 +290,8 @@ def nesterov_forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
         raise ValueError("wind should at least 2, got {0}".format(wind))
 
     v = v0
-
     z_old = np.zeros_like(v0)
-
-    # saving variables
-    xx = []
-    J = []
-
-    # prepare the iterate
+    J, xx = [], []
     t = t_old = 1
 
     # main loop
