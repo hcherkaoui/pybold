@@ -5,7 +5,8 @@ import numpy as np
 from .hrf_model import spm_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
-from .solvers import nesterov_forward_backward
+from .solvers import (nesterov_forward_backward, fista,
+                      admm_sparse_positif_ratio_hrf_encoding)
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
 
@@ -73,7 +74,7 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
     grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
 
     x, J = nesterov_forward_backward(
-                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=10000,
+                    grad=grad, prox=prox, v0=z0, nb_iter=10000,
                     early_stopping=True, verbose=verbose,
                       )
     est_i_s = x
@@ -104,9 +105,8 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
 
     prox = L1Norm(lbda)
     grad = L2ResidualLinear(H, ar_s, z0.shape)
-
     sparce_encoding_hrf, J = nesterov_forward_backward(
-                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=10000,
+                    grad=grad, prox=prox, v0=z0, nb_iter=10000,
                     early_stopping=True, verbose=verbose,
                       )
     hrf = hrf_dico.op(sparce_encoding_hrf)
@@ -115,9 +115,10 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
 
 
 def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
-                             lbda_hrf=1.0, init_hrf=None, nb_iter=50,
-                             model_type='bloc', early_stopping=False, wind=24,
-                             tol=1.0e-24, verbose=0):
+                             lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
+                             model_type='bloc', nb_iter=50,
+                             early_stopping=False, wind=24, tol=1.0e-24,
+                             verbose=0):
     """ Blind deconvolution of the BOLD signal.
     """
     # cast hrf dictionnary/basis to the Matrix class used
@@ -149,8 +150,11 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
     # init cost function value
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
-    g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
-    J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+    if not hrf_fixed_ampl:
+        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+    else:
+        J.append(0.5 * r + lbda_bold * g_bold)
 
     for idx in range(nb_iter):
 
@@ -165,8 +169,8 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
 
         v0 = est_i_s
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-        est_i_s, _ = nesterov_forward_backward(
-                    grad=grad, prox=prox_bold, v0=v0, w=None, nb_iter=10000,
+        est_i_s, _ = fista(
+                    grad=grad, prox=prox_bold, v0=v0, nb_iter=10000,
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
 
@@ -176,12 +180,6 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
         elif model_type == 'event':
             est_ar_s = Conv(est_hrf, N).op(est_i_s)
 
-        # cost function after deconvolution step
-        r = np.sum(np.square(est_ar_s - noisy_ar_s))
-        g_bold = np.sum(np.abs(est_i_s))
-        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
-        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
-
         # HRF estimation
         if model_type == 'bloc':
             H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
@@ -189,9 +187,16 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
             H = ConvAndLinear(hrf_dico, est_i_s, dim_in=len_hrf, dim_out=N)
         est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
         v0 = est_sparse_encoding_hrf
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-        est_sparse_encoding_hrf, _ = nesterov_forward_backward(
-                    grad=grad, prox=prox_hrf, v0=v0, w=None, nb_iter=10000,
+        if hrf_fixed_ampl:
+            est_sparse_encoding_hrf, _ = \
+                admm_sparse_positif_ratio_hrf_encoding(
+                     y=noisy_ar_s, L=H, v0=v0, mu=lbda_hrf, nb_iter=10000,
+                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+        else:
+            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+            est_sparse_encoding_hrf, _ = nesterov_forward_backward(
+                    grad=grad, prox=prox_hrf, v0=v0, nb_iter=10000,
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
@@ -201,11 +206,14 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
         elif model_type == 'event':
             est_ar_s = Conv(est_hrf, N).op(est_i_s)
 
-        # cost function after hrf step
+        # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
         g_bold = np.sum(np.abs(est_i_s))
-        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
-        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+        if not hrf_fixed_ampl:
+            g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+            J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+        else:
+            J.append(0.5 * r + lbda_bold * g_bold)
 
         if (verbose > 0):
             print("global cost-function "
@@ -221,7 +229,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
                 if diff < tol:
                     if verbose > 0:
                         print("\n-----> early-stopping done at {0}/{1}, global"
-                              " cost-function = {2:.4f}".format(idx, nb_iter,
+                              " cost-function = {2:.6f}".format(idx, nb_iter,
                                                                 J[idx]))
                     break
     J = np.array(J)
