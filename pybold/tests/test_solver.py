@@ -5,7 +5,7 @@ import numpy as np
 from pybold.linear import Identity
 from pybold.proximity import SquareSum
 from pybold.gradient import L2ResidualLinear
-from pybold.solvers import condatvu, fista
+from pybold.solvers import condatvu, nesterov_forward_backward
 from pybold.data import gen_ai_s
 
 
@@ -57,8 +57,8 @@ class TestFISTA(unittest.TestCase):
         prox = SquareSum(lbda)
         grad = L2ResidualLinear(Id, ai_s, z0.shape)
 
-        est_ai_s, _, _, _ = fista(
-                    grad=grad, prox=prox, v0=z0, w=None, nb_iter=9999,
+        est_ai_s, _ = nesterov_forward_backward(
+                    grad=grad, prox=prox, v0=z0, nb_iter=9999,
                     wind=24, tol=1.0e-30, early_stopping=True, verbose=0,
                           )
         true_est_ai_s = (1.0 / (2 * lbda + 1)) * ai_s
