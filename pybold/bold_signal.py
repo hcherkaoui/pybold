@@ -1,7 +1,10 @@
 # coding: utf-8
 """ Main module that provide the blind deconvolution function.
 """
+import itertools
+import psutil
 import numpy as np
+from joblib import Parallel, delayed
 from .hrf_model import spm_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
@@ -9,6 +12,7 @@ from .solvers import (nesterov_forward_backward, fista,
                       admm_sparse_positif_ratio_hrf_encoding)
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
+from .utils import fwhm
 
 
 def sparse_hrf_ampl_corr(sparse_hrf, ar_s, hrf_dico, ai_s, th=1.0e-2):
@@ -239,3 +243,71 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
 
     elif model_type == 'event':
         return est_ar_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+
+
+def _default_wrapper(recons_func, **kwargs):
+    """ Default wrapper to parallelize the image reconstruction.
+    """
+    return recons_func(**kwargs)
+
+
+def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
+    """ Run `func` on the carthesian product of `param_grid`.
+
+        Results:
+        --------
+        list_kwargs: dict,
+            the list of the params used for each reconstruction.
+        res: list,
+            the list of result for each reconstruction.
+    """
+    if wrapper is None:
+        wrapper = _default_wrapper
+    # sanitize value to list type
+    for key, value in param_grid.iteritems():
+        if not isinstance(value, list):
+            param_grid[key] = [value]
+    list_kwargs = [dict(zip(param_grid, x))
+                   for x in itertools.product(*param_grid.values())]
+    # Run the reconstruction
+    if verbose > 0:
+        if n_jobs == -1:
+            n_jobs_used = psutil.cpu_count()
+        elif n_jobs == -2:
+            n_jobs_used = psutil.cpu_count() - 1
+        else:
+            n_jobs_used = n_jobs
+        print(("Running grid_search for {0} candidates"
+               " on {1} jobs").format(len(list_kwargs), n_jobs_used))
+    res = Parallel(n_jobs=n_jobs, verbose=verbose)(
+                   delayed(wrapper)(func, **kwargs)
+                   for kwargs in list_kwargs)
+    return list_kwargs, res
+
+
+def bold_blind_deconvolution_cv( # noqa
+                    noisy_ar_s, tr, hrf_dico, t_hrf, orig_hrf,
+                    lbda_bold=list(np.linspace(5.0e-2, 5.0, 5)),
+                    lbda_hrf=list(np.linspace(5.0e-2, 5.0, 5)),
+                    init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
+                    model_type='bloc', early_stopping=False, wind=24,
+                    tol=1.0e-24, n_jobs=1, verbose=0):
+    """ Blind deconvolution of the BOLD signal.
+    """
+    param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
+                  'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
+                  'init_hrf': init_hrf, 'hrf_fixed_ampl': hrf_fixed_ampl,
+                  'nb_iter': nb_iter, 'model_type': model_type,
+                  'early_stopping': early_stopping, 'wind': wind, 'tol': tol,
+                  'verbose': 0}
+    list_kwargs, res = grid_search(bold_blind_deconvolution, param_grid,
+                                   n_jobs=n_jobs, verbose=verbose)
+
+    true_fwhm = fwhm(t_hrf, orig_hrf)
+    errs_fwhm = []
+    for (est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J) in res:
+        curr_fwhm = fwhm(t_hrf, est_hrf)
+        errs_fwhm.append(np.abs(curr_fwhm - true_fwhm))
+    idx_best = np.argmin(np.array(errs_fwhm))
+
+    return list_kwargs[idx_best], res[idx_best]
