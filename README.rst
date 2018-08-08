@@ -44,9 +44,9 @@ To run all the tests, run the following command from the pybold directory::
 
     python -m unittest discover pybold/tests
 
-To run the example, run the following command from the example directory::
+To run the examples, go to the directories examples and run a script, e.g.::
 
-    python blind_deconvolution.py
+    python deconvolution_bloc.py
 
 
 Development
