@@ -5,6 +5,7 @@ import itertools
 import psutil
 import numpy as np
 from joblib import Parallel, delayed
+from scipy.optimize import minimize
 from .hrf_model import spm_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
@@ -116,6 +117,63 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
     hrf = hrf_dico.op(sparce_encoding_hrf)
 
     return hrf, sparce_encoding_hrf, J
+
+
+def _inv_logit(x):
+    """ Inverse logit function
+    """
+    return np.exp(x - np.log(1 + np.exp(x)))  # avoid overflows
+
+
+def _hrf_from_logit_params(hrf_logit_params, dur, tr):
+    """ Return the HRF from the specified inv. logit parameters.
+    """
+    alpha_1, T1, T2, T3, D1, D2, D3 = hrf_logit_params
+
+    num_alpha_2 = _inv_logit(-T1)/D1 - _inv_logit(-T3)/D3
+    den_alpha_2 = _inv_logit(-T3)/D3 + _inv_logit(-T2)/D2
+    tmp = np.exp(np.log(num_alpha_2) - np.log(den_alpha_2))  # avoid overflows
+    alpha_2 = - alpha_1 * tmp
+
+    alpha_3 = np.abs(alpha_2) - np.abs(alpha_1)
+
+    t_hrf = np.linspace(0, dur, float(dur)/tr)
+    il_1 = _inv_logit((t_hrf-T1)/D1)
+    il_2 = _inv_logit((t_hrf-T2)/D2)
+    il_3 = _inv_logit((t_hrf-T3)/D3)
+    hrf = alpha_1 * il_1 + alpha_2 * il_2 + alpha_3 * il_3
+
+    return hrf, [il_1, il_2, il_3], t_hrf
+
+
+def _se_logit_fit(hrf_logit_params, ai_i_s, ar_s, tr, dur):
+    """ 0.5 * || h*x - y ||_2^2 with h being a three IL hrf model.
+    """
+    hrf, _, _ = _hrf_from_logit_params(hrf_logit_params, dur, tr)
+    H = Conv(hrf, len(ar_s))
+    est_ar_s = H.op(ai_i_s)
+
+    return np.sum(np.square(ar_s - est_ar_s))
+
+
+def hrf_il_estimation(ai_i_s, ar_s, tr=1.0, dur=25.0):
+    """ HRF three inverse-logit estimation.
+    """
+    # params = [alpha_1, T1, T2, T3, D1, D2, D3]
+    params_init = np.array([1.0, 6.0, 10.0, 15.0, 1.0, 2.0, 1.0])
+
+    hrf, _, _ = _hrf_from_logit_params(params_init, dur, tr)
+    import matplotlib.pyplot as plt
+    plt.plot(hrf)
+    plt.show()
+
+    cst_args = (ai_i_s, ar_s, tr, dur)
+    res = minimize(fun=_se_logit_fit, x0=params_init,
+                   args=cst_args, method='BFGS')
+    hrf_logit_params = res.x
+    hrf, _, _ = _hrf_from_logit_params(hrf_logit_params, dur, tr)
+
+    return hrf
 
 
 def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
