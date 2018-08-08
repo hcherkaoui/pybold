@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from pybold.data import gen_event_bold
 from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import bold_blind_deconvolution
+from pybold.bold_signal import bold_blind_deconvolution_cv
 
 
 ###############################################################################
@@ -18,7 +18,7 @@ from pybold.bold_signal import bold_blind_deconvolution
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_blind_deconvolution_'
+dirname = ('results_blind_deconvolution_cv_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -39,7 +39,7 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_time_length = 10.0
+true_hrf_time_length = 20.0
 normalized_hrf = True
 orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length,
                              normalized_hrf=normalized_hrf)
@@ -67,21 +67,24 @@ init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf_dico': hrf_dico,
-          'lbda_bold': 1.0,
-          'lbda_hrf': 1.0,
           'init_hrf': init_hrf,
           'hrf_fixed_ampl': False,
-          'nb_iter': 100,
+          'nb_iter': 150,
           'model_type': 'event',
-          'verbose': 1,
+          'n_jobs': -1,
+          't_hrf': t_hrf,
+          'orig_hrf': orig_hrf,
+          'verbose': 3,
           }
 
 t0 = time.time()
-results = bold_blind_deconvolution(**params)
+params, results = bold_blind_deconvolution_cv(**params)
 est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0:.2f} s".format(delta_t))
+print("Best lbda_hrf={0}, best lbda_bold={1}".format(params['lbda_hrf'],
+                                                     params['lbda_bold']))
 
 ###############################################################################
 # post-processing

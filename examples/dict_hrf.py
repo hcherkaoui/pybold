@@ -3,7 +3,7 @@
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from pybold.data import gen_hrf_spm_dict_normalized
+from pybold.hrf_model import gen_hrf_spm_dict_normalized
 
 
 print(__doc__)

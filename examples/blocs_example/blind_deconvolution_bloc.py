@@ -19,12 +19,12 @@ print(__doc__)
 
 d = datetime.now()
 dirname = ('results_blind_deconvolution_'
-           '{0}_{1}_{2}_{3}_{4}_{5}'.format(d.year,
-                                            d.month,
-                                            d.day,
-                                            d.hour,
-                                            d.minute,
-                                            d.second))
+           '#{0}{1}{2}{3}{4}{5}'.format(d.year,
+                                        d.month,
+                                        d.day,
+                                        d.hour,
+                                        d.minute,
+                                        d.second))
 
 if not os.path.exists(dirname):
     os.makedirs(dirname)
@@ -45,7 +45,6 @@ orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length,
                              normalized_hrf=normalized_hrf)
 
 # dict of HRF
-#hrf_dico = gen_hrf_spm_basis(tr=tr)
 hrf_dico = gen_hrf_spm_dict_normalized(tr=tr)
 
 # data generation
@@ -68,10 +67,10 @@ init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf_dico': hrf_dico,
-          'lbda_bold': 0.5,
-          'lbda_hrf': 0.5,
+          'lbda_bold': 1.0,
+          'lbda_hrf': 1.0,
           'init_hrf': init_hrf,
-          'nb_iter': 50,
+          'nb_iter': 100,
           'verbose': 1,
           }
 
@@ -84,9 +83,10 @@ print("Duration: {0:.2f} s".format(delta_t))
 
 ###############################################################################
 # post-processing
-est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
-                                                 est_i_s, est_hrf])
-ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
+if True:
+    est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
+                                                     est_i_s, est_hrf])
+    ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
 
 ###############################################################################
 # plotting
