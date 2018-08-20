@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold
+from pybold.data import gen_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.bold_signal import hrf_scale_factor_estimation
 from pybold.utils import fwhm
@@ -18,13 +18,13 @@ from pybold.utils import fwhm
 print(__doc__)
 
 d = datetime.now()
-dirname = ("results_hrf_scale_factor_estimation_"
-           "#{0}{1}{2}{3}{4}{5}".format(d.year,
-                                        d.month,
-                                        d.day,
-                                        d.hour,
-                                        d.minute,
-                                        d.second))
+dirname = ('results_hrf_sclae_factor_'
+           'estimation_#{0}{1}{2}{3}{4}{5}'.format(d.year,
+                                                   d.month,
+                                                   d.day,
+                                                   d.hour,
+                                                   d.minute,
+                                                   d.second))
 
 if not os.path.exists(dirname):
     os.makedirs(dirname)
@@ -35,33 +35,34 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 ###############################################################################
 # generate data
 dur = 10  # minutes
+hrf_dur = 30.0
 tr = 1.0
 snr = 1.0
 
 # True HRF
-true_delta = 1.0
-dur = 60.0
-orig_hrf, t_hrf = spm_hrf(delta=true_delta, tr=tr, dur=dur)
+true_hrf_delta = 1.5
+orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
 
 # data generation
 params = {'dur': dur,
           'tr': tr,
           'hrf': orig_hrf,
           'nb_events': 5,
-          'avg_ampl': 1,
-          'std_ampl': 3,
+          'avg_dur': 1,
+          'std_dur': 3,
+          'overlapping': False,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, _, i_s, t, _, _ = gen_event_bold(**params)
+noisy_ar_s, _, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 
 
 ###############################################################################
 # Estimate the HRF
-params = {'ai_i_s': i_s,
+params = {'ai_i_s': ai_s,
           'ar_s': noisy_ar_s,
           'tr': tr,
-          'dur': dur,
+          'dur': hrf_dur,
           'verbose': 3,
           }
 
@@ -76,28 +77,28 @@ print("Duration: {0} s".format(delta_t))
 # plotting
 print("Results directory: '{0}'".format(dirname))
 
-# plot 0
-fig = plt.figure(0, figsize=(20, 10))
+# plot 1
+fig = plt.figure(1, figsize=(20, 10))
 
 label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
-plt.plot(orig_hrf, '-b', label=label, linewidth=2.0)
+plt.plot(t_hrf, orig_hrf, '-b', label=label, linewidth=2.0)
 label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
-plt.plot(est_hrf, '--g', label=label, linewidth=2.0)
-plt.xlabel("scans")
+plt.plot(t_hrf, est_hrf, '--g', label=label, linewidth=2.0)
+plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
 plt.title("Original HRF", fontsize=20)
 
-filename = "est_hrf.png"
+filename = "est_hrf_{0}.png".format(true_hrf_delta)
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
-# plot 1
-fig = plt.figure(1, figsize=(16, 8))
+# plot 2
+fig = plt.figure(2, figsize=(16, 8))
 
 plt.plot(t, noisy_ar_s, '-b', label="Noisy BOLD signal", linewidth=2.0)
-plt.stem(t, i_s, '-g', label="Block signal", linewidth=2.0)
+plt.plot(t, ai_s, '-g', label="Block signal", linewidth=2.0)
 
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
@@ -110,8 +111,8 @@ filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
-# plot 2
-fig = plt.figure(2, figsize=(20, 10))
+# plot 3
+fig = plt.figure(3, figsize=(20, 10))
 plt.plot(runtimes, J)
 plt.xlabel("times (s)")
 plt.ylabel("cost function")

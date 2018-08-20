@@ -18,12 +18,13 @@ from pybold.utils import fwhm
 print(__doc__)
 
 d = datetime.now()
-dirname = 'results_hrf_estimation_#{0}{1}{2}{3}{4}{5}'.format(d.year,
-                                                              d.month,
-                                                              d.day,
-                                                              d.hour,
-                                                              d.minute,
-                                                              d.second)
+dirname = ('results_hrf_sparse_encoding_estimation_'
+           '#{0}{1}{2}{3}{4}{5}'.format(d.year,
+                                        d.month,
+                                        d.day,
+                                        d.hour,
+                                        d.minute,
+                                        d.second))
 
 if not os.path.exists(dirname):
     os.makedirs(dirname)
@@ -73,6 +74,7 @@ print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 0
 fig = plt.figure(0, figsize=(20, 10))

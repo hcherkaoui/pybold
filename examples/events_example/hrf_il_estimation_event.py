@@ -71,6 +71,7 @@ print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 0
 fig = plt.figure(0, figsize=(20, 10))
