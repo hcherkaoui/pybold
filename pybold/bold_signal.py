@@ -181,12 +181,13 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     return hrf, J
 
 
-def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
-                             lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
-                             model_type='bloc', nb_iter=50,
-                             early_stopping=False, wind=24, tol=1.0e-24,
-                             verbose=0):
-    """ Blind deconvolution of the BOLD signal.
+def sparse_encoding_hrf_blind_blocs_deconvolution(
+                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
+                        lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0):
+    """ BOLD blind deconvolution function based on a sparse encoding HRF model
+    and an blocs BOLD model.
     """
     # cast hrf dictionnary/basis to the Matrix class used
     if not isinstance(hrf_dico, Matrix):
@@ -226,13 +227,8 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
     for idx in range(nb_iter):
 
         # BOLD deconvolution
-        if model_type == 'bloc':
-            Integ = DiscretInteg()
-            H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
-        elif model_type == 'event':
-            H = Conv(est_hrf, dim_in=N)
-        else:
-            raise ValueError("model_type should be in ['bloc', 'event']")
+        Integ = DiscretInteg()
+        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
 
         v0 = est_i_s
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
@@ -241,17 +237,11 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                         )
 
-        if model_type == 'bloc':
-            est_ai_s = Integ.op(est_i_s)
-            est_ar_s = Conv(est_hrf, N).op(est_ai_s)
-        elif model_type == 'event':
-            est_ar_s = Conv(est_hrf, N).op(est_i_s)
+        est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
         # HRF estimation
-        if model_type == 'bloc':
-            H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
-        elif model_type == 'event':
-            H = ConvAndLinear(hrf_dico, est_i_s, dim_in=len_hrf, dim_out=N)
+        H = ConvAndLinear(hrf_dico, est_ai_s, dim_in=len_hrf, dim_out=N)
         est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
         v0 = est_sparse_encoding_hrf
         if hrf_fixed_ampl:
@@ -268,10 +258,7 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
                         )
         est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
 
-        if model_type == 'bloc':
-            est_ar_s = Conv(est_hrf, N).op(est_ai_s)
-        elif model_type == 'event':
-            est_ar_s = Conv(est_hrf, N).op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
         # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
@@ -301,11 +288,265 @@ def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
                     break
     J = np.array(J)
 
-    if model_type == 'bloc':
-        return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+    return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
 
-    elif model_type == 'event':
-        return est_ar_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+
+def sparse_encoding_hrf_blind_events_deconvolution(
+                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
+                        lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0):
+    """ BOLD blind deconvolution function based on a sparse encoding HRF model
+    and an events BOLD model.
+    """
+    # cast hrf dictionnary/basis to the Matrix class used
+    if not isinstance(hrf_dico, Matrix):
+        hrf_dico = Matrix(hrf_dico)
+
+    # initialization of the HRF
+    if init_hrf is None:
+        est_hrf, _, _ = spm_hrf(tr=tr, time_length=30.0)  # init hrf
+    else:
+        est_hrf = init_hrf
+
+    # get the usefull dimension encounter in the problem
+    len_hrf, nb_atoms_hrf = hrf_dico.shape
+    N = len(noisy_ar_s)
+
+    J = []
+
+    # definition of the usefull operator
+    prox_bold = L1Norm(lbda_bold)
+    prox_hrf = L1Norm(lbda_hrf)
+
+    # initialization of the signal of interess
+    est_i_s = np.zeros(N)  # init spiky signal
+    est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
+
+    # init cost function value
+    r = np.sum(np.square(est_ar_s - noisy_ar_s))
+    g_bold = np.sum(np.abs(est_i_s))
+    if not hrf_fixed_ampl:
+        g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+        J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+    else:
+        J.append(0.5 * r + lbda_bold * g_bold)
+
+    for idx in range(nb_iter):
+
+        # BOLD deconvolution
+        H = Conv(est_hrf, dim_in=N)
+
+        v0 = est_i_s
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        est_i_s, _ = fista(
+                    grad=grad, prox=prox_bold, v0=v0, nb_iter=10000,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+
+        est_ar_s = Conv(est_hrf, N).op(est_i_s)
+
+        # HRF estimation
+        H = ConvAndLinear(hrf_dico, est_i_s, dim_in=len_hrf, dim_out=N)
+        est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)
+        v0 = est_sparse_encoding_hrf
+        if hrf_fixed_ampl:
+            est_sparse_encoding_hrf, _ = \
+                admm_sparse_positif_ratio_hrf_encoding(
+                     y=noisy_ar_s, L=H, v0=v0, mu=lbda_hrf, nb_iter=10000,
+                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+        else:
+            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+            est_sparse_encoding_hrf, _ = nesterov_forward_backward(
+                    grad=grad, prox=prox_hrf, v0=v0, nb_iter=10000,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+        est_hrf = hrf_dico.op(est_sparse_encoding_hrf)
+
+        est_ar_s = Conv(est_hrf, N).op(est_i_s)
+
+        # cost function
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        g_bold = np.sum(np.abs(est_i_s))
+        if not hrf_fixed_ampl:
+            g_hrf = np.sum(np.abs(est_sparse_encoding_hrf))
+            J.append(0.5 * r + lbda_bold * g_bold + lbda_hrf * g_hrf)
+        else:
+            J.append(0.5 * r + lbda_bold * g_bold)
+
+        if (verbose > 0):
+            print("global cost-function "
+                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+
+        # early stopping
+        if early_stopping:
+            if idx > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(J[:-sub_wind_len])
+                new_j = np.mean(J[-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at {0}/{1}, global"
+                              " cost-function = {2:.6f}".format(idx, nb_iter,
+                                                                J[idx]))
+                    break
+    J = np.array(J)
+
+    return est_ar_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
+
+
+def scaled_hrf_blind_blocs_deconvolution(
+                        noisy_ar_s, tr, lbda_bold=1.0, # noqa
+                        init_delta=None, dur_hrf=60.0, nb_iter=50,
+                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+    """ BOLD blind deconvolution function based on a scaled HRF model and an
+    blocs BOLD model.
+    """
+    # initialization of the HRF
+    est_delta = init_delta if init_delta is None else 1.0
+    est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
+
+    N = len(noisy_ar_s)
+    J = []
+
+    # definition of the usefull operator
+    Integ = DiscretInteg()
+    prox_bold = L1Norm(lbda_bold)
+
+    # initialization of the signal of interess
+    est_i_s = np.zeros(N)  # init spiky signal
+    est_ar_s = np.zeros(N)  # thus.. init convolved signal
+
+    # init cost function value
+    r = np.sum(np.square(est_ar_s - noisy_ar_s))
+    g_bold = np.sum(np.abs(est_i_s))
+    J.append(0.5 * r + lbda_bold * g_bold)
+
+    for idx in range(nb_iter):
+
+        # BOLD deconvolution
+        Integ = DiscretInteg()
+        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+
+        v0 = est_i_s
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        est_i_s, _ = fista(
+                    grad=grad, prox=prox_bold, v0=v0, nb_iter=10000,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+
+        est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        # HRF estimation
+        cst_args = (est_ai_s, noisy_ar_s, tr, dur_hrf)
+        res = minimize(fun=scale_factor_fit_err, x0=est_delta,
+                       args=cst_args, bounds=[(0.2, 2.0)])
+        est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
+
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        # cost function
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        g_bold = np.sum(np.abs(est_i_s))
+        J.append(0.5 * r + lbda_bold * g_bold)
+
+        if (verbose > 0):
+            print("global cost-function "
+                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+
+        # early stopping
+        if early_stopping:
+            if idx > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(J[:-sub_wind_len])
+                new_j = np.mean(J[-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at {0}/{1}, global"
+                              " cost-function = {2:.6f}".format(idx, nb_iter,
+                                                                J[idx]))
+                    break
+    J = np.array(J)
+
+    return est_ar_s, est_ai_s, est_i_s, est_hrf, J
+
+
+def scaled_hrf_blind_events_deconvolution(
+                        noisy_ar_s, tr, lbda_bold=1.0, # noqa
+                        init_delta=None, dur_hrf=60.0, nb_iter=50,
+                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+    """ BOLD blind deconvolution function based on a scaled HRF model and an
+    events BOLD model.
+    """
+    # initialization of the HRF
+    est_delta = init_delta if init_delta is None else 1.0
+    est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
+
+    N = len(noisy_ar_s)
+    J = []
+
+    # definition of the usefull operator
+    prox_bold = L1Norm(lbda_bold)
+
+    # initialization of the signal of interess
+    est_i_s = np.zeros(N)  # init spiky signal
+    est_ar_s = np.zeros(N)  # thus.. init convolved signal
+
+    # init cost function value
+    r = np.sum(np.square(est_ar_s - noisy_ar_s))
+    g_bold = np.sum(np.abs(est_i_s))
+    J.append(0.5 * r + lbda_bold * g_bold)
+
+    for idx in range(nb_iter):
+
+        # BOLD deconvolution
+        H = Conv(est_hrf, dim_in=N)
+
+        v0 = est_i_s
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        est_i_s, _ = fista(
+                    grad=grad, prox=prox_bold, v0=v0, nb_iter=10000,
+                    early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                        )
+
+        # HRF estimation
+        cst_args = (est_i_s, noisy_ar_s, tr, dur_hrf)
+        res = minimize(fun=scale_factor_fit_err, x0=est_delta,
+                       args=cst_args, bounds=[(0.2, 2.0)])
+        est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
+
+        est_ar_s = Conv(est_hrf, N).op(est_i_s)
+
+        # cost function
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        g_bold = np.sum(np.abs(est_i_s))
+        J.append(0.5 * r + lbda_bold * g_bold)
+
+        if (verbose > 0):
+            print("global cost-function "
+                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+
+        # early stopping
+        if early_stopping:
+            if idx > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(J[:-sub_wind_len])
+                new_j = np.mean(J[-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at {0}/{1}, global"
+                              " cost-function = {2:.6f}".format(idx, nb_iter,
+                                                                J[idx]))
+                    break
+    J = np.array(J)
+
+    return est_ar_s, est_i_s, est_hrf, J
 
 
 def _default_wrapper(recons_func, **kwargs):
@@ -348,23 +589,55 @@ def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
     return list_kwargs, res
 
 
-def bold_blind_deconvolution_cv( # noqa
+def sparse_encoding_hrf_blind_events_deconvolution_cv( # noqa
                     noisy_ar_s, tr, hrf_dico, t_hrf, orig_hrf,
                     lbda_bold=list(np.linspace(5.0e-2, 5.0, 5)),
                     lbda_hrf=list(np.linspace(5.0e-2, 5.0, 5)),
                     init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
-                    model_type='bloc', early_stopping=False, wind=24,
-                    tol=1.0e-24, n_jobs=1, verbose=0):
+                    early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
+                    verbose=0):
     """ Blind deconvolution of the BOLD signal.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
                   'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
                   'init_hrf': init_hrf, 'hrf_fixed_ampl': hrf_fixed_ampl,
-                  'nb_iter': nb_iter, 'model_type': model_type,
-                  'early_stopping': early_stopping, 'wind': wind, 'tol': tol,
-                  'verbose': 0}
-    list_kwargs, res = grid_search(bold_blind_deconvolution, param_grid,
-                                   n_jobs=n_jobs, verbose=verbose)
+                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
+                  'wind': wind, 'tol': tol, 'verbose': 0}
+
+    list_kwargs, res = grid_search(
+                        sparse_encoding_hrf_blind_events_deconvolution,
+                        param_grid, n_jobs=n_jobs, verbose=verbose
+                                  )
+
+    true_fwhm = fwhm(t_hrf, orig_hrf)
+    errs_fwhm = []
+    for (est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J) in res:
+        curr_fwhm = fwhm(t_hrf, est_hrf)
+        errs_fwhm.append(np.abs(curr_fwhm - true_fwhm))
+    idx_best = np.argmin(np.array(errs_fwhm))
+
+    return list_kwargs[idx_best], res[idx_best]
+
+
+def sparse_encoding_hrf_blind_blocs_deconvolution_cv( # noqa
+                    noisy_ar_s, tr, hrf_dico, t_hrf, orig_hrf,
+                    lbda_bold=list(np.linspace(5.0e-2, 5.0, 5)),
+                    lbda_hrf=list(np.linspace(5.0e-2, 5.0, 5)),
+                    init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
+                    early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
+                    verbose=0):
+    """ Blind deconvolution of the BOLD signal.
+    """
+    param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
+                  'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
+                  'init_hrf': init_hrf, 'hrf_fixed_ampl': hrf_fixed_ampl,
+                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
+                  'wind': wind, 'tol': tol, 'verbose': 0}
+
+    list_kwargs, res = grid_search(
+                        sparse_encoding_hrf_blind_blocs_deconvolution,
+                        param_grid, n_jobs=n_jobs, verbose=verbose
+                                  )
 
     true_fwhm = fwhm(t_hrf, orig_hrf)
     errs_fwhm = []
