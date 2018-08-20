@@ -27,7 +27,6 @@ def _test_gradient(ar_s, ai_s, hrf, random_state):
 
 
 class TestGradient(unittest.TestCase):
-    @unittest.skip("deactivated till the tr problem is not fixed")
     def _yield_data(self):
         """ Yield data test case.
         """
@@ -36,10 +35,10 @@ class TestGradient(unittest.TestCase):
         random_state_s = [6]
         dur = 5  # minutes
         tr_s = [0.1, 0.5, 2.0]
-        hrf_time_length_s = [10.0, 50.0]
-        listparams = [random_state_s, tr_s, hrf_time_length_s]
+        delta_s = [0.3, 1.0]
+        listparams = [random_state_s, tr_s, delta_s]
         for params in itertools.product(*listparams):
-            random_state, tr, hrf_time_length = params
+            random_state, tr, delta = params
             ai_s_params = {'dur': dur,
                            'tr': tr,
                            'nb_events': 4,
@@ -49,11 +48,11 @@ class TestGradient(unittest.TestCase):
                            'random_state': random_state,
                            }
             hrf_params = {'tr': tr,
-                          'time_length': hrf_time_length,
+                          'delta': delta,
                           }
 
             ai_s, _, _ = gen_ai_s(**ai_s_params)
-            hrf, _, _ = spm_hrf(**hrf_params)
+            hrf, _ = spm_hrf(**hrf_params)
             ar_s = simple_convolve(hrf, ai_s)
             yield ar_s, ai_s, hrf, random_state
 

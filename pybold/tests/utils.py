@@ -13,19 +13,19 @@ class YieldData():
         """
         dur = 1  # minutes
         tr_s = [0.1, 2.0]
-        hrf_time_length_s = [10.0, 50.0]
-        listparams = [tr_s, hrf_time_length_s]
+        delta_s = [0.3, 1.0]
+        listparams = [tr_s, delta_s]
         for params in itertools.product(*listparams):
-            tr, hrf_time_length = params
+            tr, delta = params
             t = np.linspace(0, dur*60, int(dur*60 / tr))
             # place Dirac at 20% of dur
             onset_event = int(0.20 * dur * 60 / tr)
             i_s = np.zeros_like(t)
             i_s[onset_event] = 1
             hrf_params = {'tr': tr,
-                          'time_length': hrf_time_length,
+                          'delta': delta,
                           }
-            hrf, _, _ = spm_hrf(**hrf_params)
+            hrf, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
             D_hrf = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
@@ -38,11 +38,11 @@ class YieldData():
         random_state_s = [0]
         tr_s = [0.1, 2.0]
         dur_orig_s = [3, 10]  # minutes
-        hrf_time_length_s = [10.0, 50.0]
+        delta_s = [0.3, 1.0]
         listparams = [random_state_s, tr_s, dur_orig_s,
-                      hrf_time_length_s]
+                      delta_s]
         for params in itertools.product(*listparams):
-            random_state, tr, dur_orig, hrf_time_length = params
+            random_state, tr, dur_orig, delta = params
             ai_s_params = {'dur': dur_orig,
                            'tr': tr,
                            # nb_events should be adapted to
@@ -54,10 +54,10 @@ class YieldData():
                            'random_state': random_state,
                            }
             hrf_params = {'tr': tr,
-                          'time_length': hrf_time_length
+                          'delta': delta,
                           }
             ai_s, _, _ = gen_ai_s(**ai_s_params)
-            hrf, _, _ = spm_hrf(**hrf_params)
+            hrf, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
             D_hrf = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)

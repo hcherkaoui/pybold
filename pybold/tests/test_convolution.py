@@ -7,8 +7,6 @@ from pybold.tests.utils import YieldData
 from pybold.convolution import (simple_convolve, simple_retro_convolve,
                                 spectral_convolve, spectral_retro_convolve,
                                 toeplitz_from_kernel)
-from pybold.data import gen_ai_s
-from pybold.hrf_model import spm_hrf
 
 
 # Here we test three implementations for the convolution:
@@ -21,9 +19,9 @@ from pybold.hrf_model import spm_hrf
 # signal)
 
 
-### case kernel = HRF
+# case kernel = HRF
 
-## direct op
+# direct op
 
 # Toeplitz
 
@@ -45,14 +43,16 @@ class TestToeplitzConvolutionKernelHRF(unittest.TestCase, YieldData):
         the kernel being the HRF.
         """
         Parallel(n_jobs=-1)(delayed(_test_conv_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+                            for ai_s, hrf, _, _, _ in
+                            self.yield_diracs_signal())
 
     def test_toeplitz_convolution_kernel_hrf_on_ai_s(self):
         """ Test Toeplitz implementation of the convolution on a block signal,
         the kernel being the HRF.
         """
         Parallel(n_jobs=-1)(delayed(_test_conv_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+                            for ai_s, hrf, _, _, _ in
+                            self.yield_blocks_signal())
 
 
 # Fourier
@@ -74,17 +74,19 @@ class TestFourierConvolutionKernelHRF(unittest.TestCase, YieldData):
         the kernel being the HRF.
         """
         Parallel(n_jobs=-1)(delayed(_test_conv_fourier_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+                            for ai_s, hrf, _, _, _ in
+                            self.yield_diracs_signal())
 
     def test_fourier_convolution_kernel_hrf_on_ai_s(self):
         """ Test Fourier implementation of the convolution on a block signal,
         the kernel being the HRF.
         """
         Parallel(n_jobs=-1)(delayed(_test_conv_fourier_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+                            for ai_s, hrf, _, _, _ in
+                            self.yield_blocks_signal())
 
 
-## adj op
+# adj op
 
 
 # Toeplitz
@@ -96,7 +98,7 @@ def _test_conv_adj_toeplitz_kernel_hrf(ai_s, hrf):
     """
     H = toeplitz_from_kernel(hrf, len(ai_s), len(ai_s))
     ar_s_ref = simple_retro_convolve(hrf, ai_s)
-    adj_ar_s_test = H.T.dot(ai_s)
+    ar_s_test = H.T.dot(ai_s)
     assert(np.allclose(ar_s_ref, ar_s_test, atol=1.0e-7))
 
 
@@ -105,21 +107,27 @@ class TestToeplitzAdjConvolutionKernelHRF(unittest.TestCase, YieldData):
         """ Test Toeplitz implementation of the adj convolution on a single
         dirac, the kernel being the HRF.
         """
-        Parallel(n_jobs=-1)(delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+        Parallel(n_jobs=-1)(
+                         delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
+                         for ai_s, hrf, _, _, _ in
+                         self.yield_diracs_signal()
+                           )
 
     def test_toeplitz_adj_convolution_kernel_hrf_on_ai_s(self):
         """ Test Toeplitz implementation of the adj convolution on a block
         signal, the kernel being the HRF.
         """
-        Parallel(n_jobs=-1)(delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+        Parallel(n_jobs=-1)(
+                         delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
+                         for ai_s, hrf, _, _, _ in
+                         self.yield_blocks_signal()
+                           )
 
 
 # Fourier
 
 
-def _test_conv_adj_toeplitz_kernel_hrf(ai_s, hrf):
+def _test_conv_adj_fourier_hrf(ai_s, hrf):
     """ Helper to test the adj conv with a Fourier implementation,
     the kernel being the HRF.
     """
@@ -133,20 +141,26 @@ class TestFourierAdjConvolutionKernelHRF(unittest.TestCase, YieldData):
         """ Test Fourier implementation of the adj convolution on a single
         dirac, the kernel being the HRF.
         """
-        Parallel(n_jobs=-1)(delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+        Parallel(n_jobs=-1)(
+                        delayed(_test_conv_adj_fourier_hrf)(ai_s, hrf)
+                        for ai_s, hrf, _, _, _ in
+                        self.yield_diracs_signal()
+                           )
 
     def test_fourier_adj_convolution_kernel_hrf_on_ai_s(self):
         """ Test Fourier implementation of the adj convolution on a block
         signal, the kernel being the HRF.
         """
-        Parallel(n_jobs=-1)(delayed(_test_conv_adj_toeplitz_kernel_hrf)(ai_s, hrf)
-                            for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+        Parallel(n_jobs=-1)(
+                         delayed(_test_conv_adj_fourier_hrf)(ai_s, hrf)
+                         for ai_s, hrf, _, _, _ in
+                         self.yield_blocks_signal()
+                           )
 
 
-### case kernel = block signal
+# case kernel = block signal
 
-## direct op
+# direct op
 
 # Toeplitz
 
@@ -156,7 +170,6 @@ def _test_conv_toeplitz_kernel_signal(ai_s, hrf):
     """
     H = toeplitz_from_kernel(ai_s, len(hrf), len(ai_s))
     ar_s_ref = simple_convolve(hrf, ai_s)
-    ar_s_sim = simple_convolve(ai_s, hrf, len(ai_s))
     ar_s_test = H.dot(hrf)
     assert(np.allclose(ar_s_ref, ar_s_test, atol=1.0e-7))
 
@@ -169,7 +182,8 @@ class TestToeplitzConvolutionKernelSignal(unittest.TestCase, YieldData):
         """
         Parallel(n_jobs=-1)(
                         delayed(_test_conv_toeplitz_kernel_signal)(ai_s, hrf)
-                        for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+                        for ai_s, hrf, _, _, _ in
+                        self.yield_diracs_signal())
 
     def test_toeplitz_convolution_kernel_signal_on_ai_s(self):
         """ Test Toeplitz implementation of the convolution on a block signal,
@@ -177,11 +191,13 @@ class TestToeplitzConvolutionKernelSignal(unittest.TestCase, YieldData):
         """
         Parallel(n_jobs=-1)(
                         delayed(_test_conv_toeplitz_kernel_signal)(ai_s, hrf)
-                        for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+                        for ai_s, hrf, _, _, _ in
+                        self.yield_blocks_signal())
 
-## adj op
+# adj op
 
 # Toeplitz
+
 
 def _test_conv_adj_toeplitz_kernel_signal(ai_s, hrf):
     """ Helper to test the adj conv with a Toeplitz implementation,
@@ -200,7 +216,8 @@ class TestToeplitzAdjConvolutionKernelSignal(unittest.TestCase, YieldData):
         """
         Parallel(n_jobs=-1)(
                     delayed(_test_conv_adj_toeplitz_kernel_signal)(ai_s, hrf)
-                    for ai_s, hrf, _, _, _ in self.yield_diracs_signal())
+                    for ai_s, hrf, _, _, _ in
+                    self.yield_diracs_signal())
 
     def test_toeplitz_adj_convolution_kernel_signal_on_ai_s(self):
         """ Test Toeplitz implementation of the adj convolution on a block
@@ -208,7 +225,8 @@ class TestToeplitzAdjConvolutionKernelSignal(unittest.TestCase, YieldData):
         """
         Parallel(n_jobs=-1)(
                     delayed(_test_conv_adj_toeplitz_kernel_signal)(ai_s, hrf)
-                    for ai_s, hrf, _, _, _ in self.yield_blocks_signal())
+                    for ai_s, hrf, _, _, _ in
+                    self.yield_blocks_signal())
 
 
 if __name__ == '__main__':
