@@ -5,15 +5,15 @@ import itertools
 import psutil
 import numpy as np
 from joblib import Parallel, delayed
-from scipy.optimize import minimize
-from .hrf_model import spm_hrf
+from scipy.optimize import fmin_bfgs, minimize
+from .hrf_model import spm_hrf, il_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
 from .solvers import (nesterov_forward_backward, fista,
                       admm_sparse_positif_ratio_hrf_encoding)
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
-from .utils import fwhm
+from .utils import fwhm, Tracker
 
 
 def sparse_hrf_ampl_corr(sparse_hrf, ar_s, hrf_dico, ai_s, th=1.0e-2):
@@ -119,61 +119,66 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
     return hrf, sparce_encoding_hrf, J
 
 
-def _inv_logit(x):
-    """ Inverse logit function
+def logit_fit_err(hrf_logit_params, ai_i_s, ar_s, tr, dur):
+    """ 0.5 * || h*x - y ||_2^2 with h an IL model.
     """
-    return np.exp(x - np.log(1 + np.exp(x)))  # avoid overflows
-
-
-def _hrf_from_logit_params(hrf_logit_params, dur, tr):
-    """ Return the HRF from the specified inv. logit parameters.
-    """
-    alpha_1, T1, T2, T3, D1, D2, D3 = hrf_logit_params
-
-    num_alpha_2 = _inv_logit(-T1)/D1 - _inv_logit(-T3)/D3
-    den_alpha_2 = _inv_logit(-T3)/D3 + _inv_logit(-T2)/D2
-    tmp = np.exp(np.log(num_alpha_2) - np.log(den_alpha_2))  # avoid overflows
-    alpha_2 = - alpha_1 * tmp
-
-    alpha_3 = np.abs(alpha_2) - np.abs(alpha_1)
-
-    t_hrf = np.linspace(0, dur, float(dur)/tr)
-    il_1 = _inv_logit((t_hrf-T1)/D1)
-    il_2 = _inv_logit((t_hrf-T2)/D2)
-    il_3 = _inv_logit((t_hrf-T3)/D3)
-    hrf = alpha_1 * il_1 + alpha_2 * il_2 + alpha_3 * il_3
-
-    return hrf, [il_1, il_2, il_3], t_hrf
-
-
-def _se_logit_fit(hrf_logit_params, ai_i_s, ar_s, tr, dur):
-    """ 0.5 * || h*x - y ||_2^2 with h being a three IL hrf model.
-    """
-    hrf, _, _ = _hrf_from_logit_params(hrf_logit_params, dur, tr)
+    hrf, _, _ = il_hrf(hrf_logit_params=hrf_logit_params, dur=dur, tr=tr)
     H = Conv(hrf, len(ar_s))
-    est_ar_s = H.op(ai_i_s)
 
-    return np.sum(np.square(ar_s - est_ar_s))
+    return np.sum(np.square(ar_s - H.op(ai_i_s)))
 
 
-def hrf_il_estimation(ai_i_s, ar_s, tr=1.0, dur=25.0):
+def hrf_il_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     """ HRF three inverse-logit estimation.
     """
-    # params = [alpha_1, T1, T2, T3, D1, D2, D3]
-    params_init = np.array([1.0, 6.0, 10.0, 15.0, 1.0, 2.0, 1.0])
-
-    hrf, _, _ = _hrf_from_logit_params(params_init, dur, tr)
-    import matplotlib.pyplot as plt
-    plt.plot(hrf)
-    plt.show()
+    # params = [alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3]
+    params_init = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
 
     cst_args = (ai_i_s, ar_s, tr, dur)
-    res = minimize(fun=_se_logit_fit, x0=params_init,
-                   args=cst_args, method='BFGS')
-    hrf_logit_params = res.x
-    hrf, _, _ = _hrf_from_logit_params(hrf_logit_params, dur, tr)
+    f_cost = Tracker(logit_fit_err, cst_args, verbose)
+    verbose = verbose > 0
 
-    return hrf
+    res = fmin_bfgs(f=logit_fit_err, x0=params_init,
+                    args=cst_args, gtol=1.0e-12, maxiter=99999,
+                    full_output=True, callback=f_cost, retall=True,
+                    disp=verbose)
+    xopt, fopt, gopt, Bopt, fun_calls, grad_calls, warnflag, allvecs = res
+
+    hrf_logit_params = xopt
+    J = f_cost.J
+    hrf, _, il_s = il_hrf(hrf_logit_params, tr=tr, dur=dur)
+
+    return hrf, J, il_s
+
+
+def scale_factor_fit_err(delta, ai_i_s, ar_s, tr, dur):
+    """ 0.5 * || h*x - y ||_2^2 with h an scaled-gamma model.
+    """
+    if not isinstance(delta, float):
+        delta = float(delta)
+    hrf, _ = spm_hrf(delta=delta, dur=dur, tr=tr)
+    H = Conv(hrf, len(ar_s))
+
+    return np.sum(np.square(ar_s - H.op(ai_i_s)))
+
+
+def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
+    """ HRF scaled Gamma function estimation.
+    """
+    params_init = 1.0
+
+    cst_args = (ai_i_s, ar_s, tr, dur)
+    f_cost = Tracker(scale_factor_fit_err, cst_args, verbose)
+
+    res = minimize(fun=scale_factor_fit_err, x0=params_init,
+                   args=cst_args, bounds=[(0.2, 2.0)],
+                   callback=f_cost)
+    delta = res.x
+    J = f_cost.J
+
+    hrf, _ = spm_hrf(delta=delta, tr=tr, dur=dur)
+
+    return hrf, J
 
 
 def bold_blind_deconvolution(noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa

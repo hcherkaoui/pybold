@@ -6,6 +6,26 @@ from numpy.linalg import norm as norm_2
 from scipy.interpolate import splrep, sproot
 
 
+class Tracker:
+    """ Callback class to be used with fmin_bfgs from Scipy.
+    """
+    def __init__(self, f, args, verbose=0):
+        self.J = []
+        self.f = f
+        self.args = list(args)
+        self.verbose = verbose
+        self.idx = 0
+
+    def __call__(self, x):
+        self.idx += 1
+        args = [x] + self.args
+        j = self.f(*args)
+        if self.verbose > 2:
+            print("At iter {0}, tracked function = "
+                  "{1:.4f}".format(self.idx, j))
+        self.J.append(j)
+
+
 def fwhm(hrf_t, hrf, k=3):
     """Return the full width at half maximum.
     """

@@ -3,14 +3,31 @@
 """
 import numpy as np
 from scipy.stats import gamma
+from scipy.special import expit
+import matplotlib.pyplot as plt
 
 
-def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
+def il_hrf(hrf_logit_params, tr=1.0, dur=60.0):
+    """ Return the HRF from the specified inv. logit parameters.
+    """
+    alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3 = hrf_logit_params
+
+    t_hrf = np.linspace(0, dur, float(dur)/tr)
+    il_1 = alpha_1 * expit((t_hrf-T1)/D1)
+    il_2 = alpha_2 * expit((t_hrf-T2)/D2)
+    il_3 = alpha_3 * expit((t_hrf-T3)/D3)
+    hrf = il_1 + il_2 + il_3
+
+    return hrf, t_hrf, [il_1, il_2, il_3]
+
+
+def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True):
     """ Custom HRF.
     """
-    if (time_length < 10.0) or (time_length > 50.0):
-        raise ValueError("time_length can only belong to [10.0, 50.0], "
-                         "got {0}".format(time_length))
+    if (delta < 0.2) or (delta > 2.0):
+        raise ValueError("delta should belong in [0.2, 2.0]"
+                         ", got {0}".format(delta))
+
     # fixed: from the literature
     dt = 0.001
     delay = 6
@@ -21,12 +38,11 @@ def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
 
     # time_stamp_hrf: the (continious) time segment on which we represent all
     # the HRF. Can cut the signal too early. The time scale is second.
-    time_stamp_hrf = 25.  # secondes
+    time_stamp_hrf = dur  # secondes
 
     # scale in time the HRF
     time_stamps = np.linspace(0, time_stamp_hrf, float(time_stamp_hrf) / dt)
-    time_scale = time_stamp_hrf / time_length
-    scaled_time_stamps = time_scale * time_stamps
+    scaled_time_stamps = delta * time_stamps
 
     gamma_1 = gamma.pdf(scaled_time_stamps, delay / disp, dt / disp)
     gamma_2 = ratio_gamma * gamma.pdf(scaled_time_stamps,
@@ -45,58 +61,50 @@ def spm_hrf(tr, time_length=32.0, normalized_hrf=True):
     hrf = hrf[::int(tr/dt)]
 
     # return the HRF associated time stamp (sampled as the HRF)
-    time_stamps = time_stamps[::int(tr/dt)]
+    t_hrf = time_stamps[::int(tr/dt)]
 
-    # by default HRF is output with a 'time_stamp_hrf / tr' length
-    # returning 'right_zero_padding' allows the user to work only on the
-    # pattern of interest
-    right_zero_padding = (np.abs(hrf) >= (1.0e-3 * np.max(hrf)))
-
-    return hrf, time_stamps, right_zero_padding
+    return hrf, t_hrf
 
 
-def gen_hrf_spm_dict(tr, nb_time_deltas=500, max_delta=50.0, min_delta=10.0):
+def gen_hrf_spm_dict(tr, nb_time_deltas=50, max_delta=2.0, min_delta=0.2):
     """ Return a HRF dictionary based of the SPM model (difference of two
     gamma functions)
     """
     hrf_dico = []
-    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
+    deltas = np.linspace(min_delta, max_delta, nb_time_deltas)
 
-    for time_length in time_lengths:
-        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
-                            normalized_hrf=False)
+    for delta in deltas:
+        hrf, _ = spm_hrf(tr=tr, delta=delta, normalized_hrf=False)
         hrf_dico.append(hrf)
 
     return np.vstack(hrf_dico).T
 
 
-def gen_hrf_spm_dict_normalized(tr, nb_time_deltas=500, max_delta=50.0,
-                                min_delta=10.0):
+def gen_hrf_spm_dict_normalized(tr, nb_time_deltas=50, max_delta=2.0,
+                                min_delta=0.2):
     """ Return a HRF dictionary based of the SPM model (difference of two
     gamma functions)
     """
     hrf_dico = []
-    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
+    deltas = np.linspace(min_delta, max_delta, nb_time_deltas)
 
-    for time_length in time_lengths:
-        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
-                            normalized_hrf=True)
+    for delta in deltas:
+        hrf, _ = spm_hrf(tr=tr, delta=delta, normalized_hrf=True)
         hrf_dico.append(hrf)
 
     return np.vstack(hrf_dico).T
 
 
-def gen_hrf_spm_basis(tr, nb_time_deltas=500, max_delta=50.0, min_delta=10.0,
+def gen_hrf_spm_basis(tr, nb_time_deltas=50, max_delta=2.0, min_delta=0.2,
                       full_matrices=False, th=1.0e-3):
     """ Return a HRF dictionary based of the SPM model (difference of two
     gamma functions)
     """
     hrf_dico = []
-    time_lengths = np.linspace(min_delta, max_delta, nb_time_deltas)
+    deltas = np.linspace(min_delta, max_delta, nb_time_deltas)
 
-    for time_length in time_lengths:
-        hrf, _, _ = spm_hrf(tr=tr, time_length=time_length,
-                            normalized_hrf=True)
+    for delta in deltas:
+        hrf, _ = spm_hrf(tr=tr, delta=delta, normalized_hrf=True)
         hrf_dico.append(hrf)
     hrf_dico = np.vstack(hrf_dico).T
 
