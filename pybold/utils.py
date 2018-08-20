@@ -21,8 +21,8 @@ class Tracker:
         args = [x] + self.args
         j = self.f(*args)
         if self.verbose > 2:
-            print("At iter {0}, tracked function = "
-                  "{1:.4f}".format(self.idx, j))
+            print("At iterate {0}, tracked function = "
+                  "{1:.6f}".format(self.idx, j))
         self.J.append(j)
 
 
