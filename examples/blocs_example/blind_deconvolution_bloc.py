@@ -39,10 +39,9 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_time_length = 10.0
+true_hrf_delta = 1.0
 normalized_hrf = True
-orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length,
-                             normalized_hrf=normalized_hrf)
+orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta)
 
 # dict of HRF
 hrf_dico = gen_hrf_spm_dict_normalized(tr=tr)
@@ -62,8 +61,8 @@ noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_time_length = 30.0
-init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
+init_hrf_delta = 1.0
+init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf_dico': hrf_dico,
@@ -152,7 +151,7 @@ plt.ylabel("ampl.")
 plt.legend()
 plt.title("Original HRF, TR={0}s".format(tr), fontsize=20)
 
-filename = "est_hrf_{0}.png".format(true_hrf_time_length)
+filename = "est_hrf_{0}.png".format(true_hrf_delta)
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
@@ -167,7 +166,7 @@ plt.legend()
 plt.title("Est. sparse encoding HRF\n(ordered from tighter to the larger)",
           fontsize=20)
 
-filename = "sparse_encoding_hrf_{0}.png".format(true_hrf_time_length)
+filename = "sparse_encoding_hrf_{0}.png".format(true_hrf_delta)
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

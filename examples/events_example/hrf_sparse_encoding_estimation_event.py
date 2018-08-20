@@ -18,12 +18,13 @@ from pybold.utils import fwhm
 print(__doc__)
 
 d = datetime.now()
-dirname = 'results_hrf_estimation_#{0}{1}{2}{3}{4}{5}'.format(d.year,
-                                                              d.month,
-                                                              d.day,
-                                                              d.hour,
-                                                              d.minute,
-                                                              d.second)
+dirname = ('results_hrf_sparse_encoding_estimation_'
+           '#{0}{1}{2}{3}{4}{5}'.format(d.year,
+                                        d.month,
+                                        d.day,
+                                        d.hour,
+                                        d.minute,
+                                        d.second))
 
 if not os.path.exists(dirname):
     os.makedirs(dirname)
@@ -38,11 +39,12 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_time_length = 20.0
-orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length)
+true_delta = 0.3
+dur = 60.0
+orig_hrf, t_hrf = spm_hrf(delta=true_delta, tr=tr, dur=dur)
 
 # dict of HRF
-nb_time_deltas = 500
+nb_time_deltas = 50
 hrf_dico = gen_hrf_spm_dict_normalized(tr=tr, nb_time_deltas=nb_time_deltas)
 
 # data generation
@@ -82,7 +84,7 @@ plt.legend()
 title = ("Est. sparse encoding HRF\n ordered from tighter to the larger)")
 plt.title(title, fontsize=20)
 
-filename = "coef_hrf_{0}.png".format(true_hrf_time_length)
+filename = "coef_hrf.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
@@ -98,7 +100,7 @@ plt.ylabel("ampl.")
 plt.legend()
 plt.title("Original HRF", fontsize=20)
 
-filename = "est_hrf_{0}.png".format(true_hrf_time_length)
+filename = "est_hrf.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

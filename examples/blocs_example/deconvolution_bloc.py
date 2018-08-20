@@ -34,8 +34,8 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 dur = 10  # minutes
 tr = 1.0
 snr = 1.0
-hrf_time_length = 40.0
-orig_hrf, _, _ = spm_hrf(tr=tr, time_length=hrf_time_length)
+hrf_delta = 1.0
+orig_hrf, _ = spm_hrf(tr=tr, delta=hrf_delta)
 params = {'dur': dur,
           'tr': tr,
           'hrf': orig_hrf,
