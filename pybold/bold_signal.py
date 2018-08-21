@@ -1,10 +1,7 @@
 # coding: utf-8
 """ Main module that provide the blind deconvolution function.
 """
-import itertools
-import psutil
 import numpy as np
-from joblib import Parallel, delayed
 from scipy.optimize import fmin_bfgs, minimize
 from .hrf_model import spm_hrf, il_hrf
 from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
@@ -13,11 +10,42 @@ from .solvers import (nesterov_forward_backward, fista,
                       admm_sparse_positif_ratio_hrf_encoding)
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
-from .utils import fwhm, Tracker
+from .utils import fwhm, Tracker, grid_search
+
+
+# Sparse model amplitude correction
 
 
 def sparse_hrf_ampl_corr(sparse_hrf, ar_s, hrf_dico, ai_s, th=1.0e-2):
     """ Re-estimate the amplitude of the spike signal.
+
+    Try to correct the amplitude of the sparse encoding by doing a least square
+    regression on the support.
+
+    Parameters:
+    -----------
+    sparse_hrf : 1d np.ndarray,
+        the sparse encoding of the HRF.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    hrf_dico : 2d np.ndarray,
+        the parsifying dictionary.
+
+    ai_s : 1d np.ndarray,
+        the spike signal
+
+    th : float (default=1.0e-2),
+        the threshold to define the support
+
+    Return:
+    -------
+    corr_hrf : 1d np.ndarray,
+        the re-estimated HRF.
+
+    corr_sparse_hrf : 1d np.ndarray,
+        the re-estimated sparse encoding of the HRF.
     """
     # re-define the support
     mask = (np.abs(sparse_hrf) > np.max(np.abs(sparse_hrf)) * th)
@@ -39,6 +67,34 @@ def sparse_hrf_ampl_corr(sparse_hrf, ar_s, hrf_dico, ai_s, th=1.0e-2):
 
 def i_s_ampl_corr(est_i_s, noisy_ar_s, hrf, th=1.0e-2):
     """ Re-estimate the amplitude of the spike signal.
+
+    Try to correct the amplitude of the source signal by doing a least square
+    regression on the support.
+
+    Parameters:
+    -----------
+    est_i_s : 1d np.ndarray,
+        the sparse encoding of the HRF.
+
+    noisy_ar_s : 1d np.ndarray,
+        the observed signal.
+
+    hrf : 1d np.ndarray,
+        the HRF.
+
+    th : float (default=1.0e-2),
+        the threshold to define the support
+
+    Return:
+    -------
+    rest_ar_s : 1d np.ndarray,
+        the re-estimated convolved signal.
+
+    rest_ai_s : 1d np.ndarray,
+        the re-estimated bloc signal.
+
+    rest_i_s : 1d np.ndarray,
+        the re-estimated source signal.
     """
     # re-define the support
     mask = (np.abs(est_i_s) > np.max(np.abs(est_i_s)) * th)
@@ -60,18 +116,47 @@ def i_s_ampl_corr(est_i_s, noisy_ar_s, hrf, th=1.0e-2):
     return rest_ar_s, rest_ai_s, rest_i_s
 
 
-def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
-                       verbose=0):
-    """ Deconvolve the given BOLD signal.
+# Deconvolution
+
+
+def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
+    """ Deconvolve the given BOLD signal given an HRF convolution kernel.
+    The source signal is supposed to be a bloc signal.
+
+    Parameters:
+    ----------
+    noisy_ar_s : 1d np.ndarray,
+        the observed bold signal.
+
+    tr : float,
+        the TR.
+
+    hrf : 1d np.ndarray,
+        the HRF.
+
+    lbda : float (default=1.0),
+        the regularization parameter.
+
+    verbose : int (default=0),
+        the verbosity level.
+
+    Return:
+    ------
+    est_ar_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_ai_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_i_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
     """
-    if model_type == 'bloc':
-        Integ = DiscretInteg()
-        H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
-                          dim_out=len(noisy_ar_s))
-    elif model_type == 'event':
-        H = Conv(hrf, dim_in=len(noisy_ar_s))
-    else:
-        raise ValueError("model_type should be in ['bloc', 'event']")
+    Integ = DiscretInteg()
+    H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
+                      dim_out=len(noisy_ar_s))
 
     z0 = np.zeros(len(noisy_ar_s))
 
@@ -84,21 +169,103 @@ def bold_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, model_type='bloc',
                       )
     est_i_s = x
 
-    if model_type == 'bloc':
-        est_ai_s = Integ.op(x)
-        est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
+    est_ai_s = Integ.op(x)
+    est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
 
-        return est_ar_s, est_ai_s, est_i_s, J
-
-    elif model_type == 'event':
-        est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_i_s)
-
-        return est_ar_s, est_i_s, J
+    return est_ar_s, est_ai_s, est_i_s, J
 
 
-def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
+def bold_event_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
+    """ Deconvolve the given BOLD signal given an HRF convolution kernel.
+    The source signal is supposed to be a Dirac signal.
+
+    Parameters:
+    ----------
+    noisy_ar_s : 1d np.ndarray,
+        the observed bold signal.
+
+    tr : float,
+        the TR.
+
+    hrf : 1d np.ndarray,
+        the HRF.
+
+    lbda : float (default=1.0),
+        the regularization parameter.
+
+    verbose : int (default=0),
+        the verbosity level.
+
+    Return:
+    ------
+    est_ar_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_ai_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_i_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
+    """
+    Integ = DiscretInteg()
+    H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
+                      dim_out=len(noisy_ar_s))
+
+    z0 = np.zeros(len(noisy_ar_s))
+
+    prox = L1Norm(lbda)
+    grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
+
+    x, J = nesterov_forward_backward(
+                    grad=grad, prox=prox, v0=z0, nb_iter=10000,
+                    early_stopping=True, verbose=verbose,
+                      )
+    est_i_s = x
+    est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_i_s)
+
+    return est_ar_s, est_i_s, J
+
+
+# HRF estimation
+
+
+def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=1.0,
                                    verbose=0):
     """ HRF sparse-encoding estimation.
+
+    Paramters:
+    ----------
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float,
+        the TR.
+
+    hrf_dico : 2d np.ndarray,
+        the parsifying dictionary.
+
+    lbda : float (default=1.0),
+        the parameter of regularization.
+
+    verbose : int (default=0),
+        the verbosity level.
+
+    Return:
+    -------
+    hrf : 1d np.ndarray,
+        the estimated HRF.
+
+    sparce_encoding_hrf : 1d np.ndarray,
+        the estimated sparse encoding of the HRF.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
     """
     # ai_i_s: either ai_s or i_s signal
     if not isinstance(hrf_dico, Matrix):
@@ -120,7 +287,31 @@ def hrf_sparse_encoding_estimation(ai_i_s, ar_s, tr, hrf_dico, lbda=None,
 
 
 def logit_fit_err(hrf_logit_params, ai_i_s, ar_s, tr, dur):
-    """ 0.5 * || h*x - y ||_2^2 with h an IL model.
+    """ Cost function for the IL model.
+    e.g. 0.5 * || h*x - y ||_2^2 with h an IL model.
+
+    Parameters:
+    -----------
+    hrf_logit_params : 1d np.ndarray,
+        the parameter of the IL model ([alpha_1, alpha_2, alpha_3, T1, T2, T3,
+        D1, D2, D3]).
+
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float,
+        the TR.
+
+    dur : float,
+        number of seconds on which represent the HRF.
+
+    Return:
+    -------
+    cost : float,
+        the cost-function for the given parameter.
     """
     hrf, _, _ = il_hrf(hrf_logit_params=hrf_logit_params, dur=dur, tr=tr)
     H = Conv(hrf, len(ar_s))
@@ -130,6 +321,33 @@ def logit_fit_err(hrf_logit_params, ai_i_s, ar_s, tr, dur):
 
 def hrf_il_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     """ HRF three inverse-logit estimation.
+
+    Parameters:
+    -----------
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float (default=1.0),
+        the TR.
+
+    dur : float (default=60.0),
+        number of seconds on which represent the HRF.
+
+    verbose : int (default=0)
+
+    Return:
+    ------
+    hrf : 1d np.ndarray,
+        the estimated HRF.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
+
+    ils: list of 1d np.ndarray,
+        the three IL that produce the estimated HRF.
     """
     # params = [alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3]
     params_init = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
@@ -152,7 +370,30 @@ def hrf_il_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
 
 
 def scale_factor_fit_err(delta, ai_i_s, ar_s, tr, dur):
-    """ 0.5 * || h*x - y ||_2^2 with h an scaled-gamma model.
+    """ Cost function for the scaled-gamma HRF model.
+    e.g. 0.5 * || h*x - y ||_2^2 with h an scaled-gamma HRF model.
+
+    Parameters:
+    -----------
+    delta : float
+        the parameter of scaled-gamma HRF model.
+
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float,
+        the TR.
+
+    dur : float,
+        number of seconds on which represent the HRF.
+
+    Return:
+    -------
+    cost : float,
+        the cost-function for the given parameter.
     """
     if not isinstance(delta, float):
         delta = float(delta)
@@ -164,6 +405,30 @@ def scale_factor_fit_err(delta, ai_i_s, ar_s, tr, dur):
 
 def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     """ HRF scaled Gamma function estimation.
+
+    Parameters:
+    -----------
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float (default=1.0),
+        the TR.
+
+    dur : float (default=60.0),
+        number of seconds on which represent the HRF.
+
+    verbose : int (default=0)
+
+    Return:
+    ------
+    hrf : 1d np.ndarray,
+        the estimated HRF.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
     """
     params_init = 1.0
 
@@ -179,6 +444,9 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     hrf, _ = spm_hrf(delta=delta, tr=tr, dur=dur)
 
     return hrf, J
+
+
+# Blind deconvolution
 
 
 def sparse_encoding_hrf_blind_blocs_deconvolution(
@@ -271,7 +539,7 @@ def sparse_encoding_hrf_blind_blocs_deconvolution(
 
         if (verbose > 0):
             print("global cost-function "
-                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+                  "({0}/{1}): {2:.6f}".format(idx+1, nb_iter, J[-1]))
 
         # early stopping
         if early_stopping:
@@ -378,7 +646,7 @@ def sparse_encoding_hrf_blind_events_deconvolution(
 
         if (verbose > 0):
             print("global cost-function "
-                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+                  "({0}/{1}): {2:.6f}".format(idx+1, nb_iter, J[-1]))
 
         # early stopping
         if early_stopping:
@@ -456,7 +724,7 @@ def scaled_hrf_blind_blocs_deconvolution(
 
         if (verbose > 0):
             print("global cost-function "
-                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+                  "({0}/{1}): {2:.6f}".format(idx+1, nb_iter, J[-1]))
 
         # early stopping
         if early_stopping:
@@ -529,7 +797,7 @@ def scaled_hrf_blind_events_deconvolution(
 
         if (verbose > 0):
             print("global cost-function "
-                  "({0}/{1}): {2:.4f}".format(idx+1, nb_iter, J[-1]))
+                  "({0}/{1}): {2:.6f}".format(idx+1, nb_iter, J[-1]))
 
         # early stopping
         if early_stopping:
@@ -549,44 +817,7 @@ def scaled_hrf_blind_events_deconvolution(
     return est_ar_s, est_i_s, est_hrf, J
 
 
-def _default_wrapper(recons_func, **kwargs):
-    """ Default wrapper to parallelize the image reconstruction.
-    """
-    return recons_func(**kwargs)
-
-
-def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
-    """ Run `func` on the carthesian product of `param_grid`.
-
-        Results:
-        --------
-        list_kwargs: dict,
-            the list of the params used for each reconstruction.
-        res: list,
-            the list of result for each reconstruction.
-    """
-    if wrapper is None:
-        wrapper = _default_wrapper
-    # sanitize value to list type
-    for key, value in param_grid.iteritems():
-        if not isinstance(value, list):
-            param_grid[key] = [value]
-    list_kwargs = [dict(zip(param_grid, x))
-                   for x in itertools.product(*param_grid.values())]
-    # Run the reconstruction
-    if verbose > 0:
-        if n_jobs == -1:
-            n_jobs_used = psutil.cpu_count()
-        elif n_jobs == -2:
-            n_jobs_used = psutil.cpu_count() - 1
-        else:
-            n_jobs_used = n_jobs
-        print(("Running grid_search for {0} candidates"
-               " on {1} jobs").format(len(list_kwargs), n_jobs_used))
-    res = Parallel(n_jobs=n_jobs, verbose=verbose)(
-                   delayed(wrapper)(func, **kwargs)
-                   for kwargs in list_kwargs)
-    return list_kwargs, res
+# Cross-validation blind deconvolution
 
 
 def sparse_encoding_hrf_blind_events_deconvolution_cv( # noqa
@@ -596,7 +827,8 @@ def sparse_encoding_hrf_blind_events_deconvolution_cv( # noqa
                     init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
                     early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
                     verbose=0):
-    """ Blind deconvolution of the BOLD signal.
+    """ Cross-validated BOLD blind deconvolution function based on a sparse
+    encoding HRF model and an events BOLD model.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
                   'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
@@ -626,7 +858,8 @@ def sparse_encoding_hrf_blind_blocs_deconvolution_cv( # noqa
                     init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
                     early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
                     verbose=0):
-    """ Blind deconvolution of the BOLD signal.
+    """ Cross-validated BOLD blind deconvolution function based on a sparse
+    encoding HRF model and an blocs BOLD model.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
                   'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
@@ -636,6 +869,36 @@ def sparse_encoding_hrf_blind_blocs_deconvolution_cv( # noqa
 
     list_kwargs, res = grid_search(
                         sparse_encoding_hrf_blind_blocs_deconvolution,
+                        param_grid, n_jobs=n_jobs, verbose=verbose
+                                  )
+
+    true_fwhm = fwhm(t_hrf, orig_hrf)
+    errs_fwhm = []
+    for (est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J) in res:
+        curr_fwhm = fwhm(t_hrf, est_hrf)
+        errs_fwhm.append(np.abs(curr_fwhm - true_fwhm))
+    idx_best = np.argmin(np.array(errs_fwhm))
+
+    return list_kwargs[idx_best], res[idx_best]
+
+
+def scaled_hrf_blind_blocs_deconvolution_cv( # noqa
+                        noisy_ar_s, tr, t_hrf, orig_hrf,
+                        lbda_bold=list(np.linspace(5.0e-2, 5.0, 4)), # noqa
+                        init_delta=None, dur_hrf=60.0, nb_iter=50,
+                        early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
+                        verbose=0):
+
+    """ Cross-validated BOLD blind deconvolution function based on a scaled
+    HRF model and an blocs BOLD model.
+    """
+    param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'lbda_bold': lbda_bold,
+                  'init_delta': init_delta, 'dur_hrf': dur_hrf,
+                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
+                  'wind': wind, 'tol': tol, 'verbose': 0}
+
+    list_kwargs, res = grid_search(
+                        scaled_hrf_blind_blocs_deconvolution,
                         param_grid, n_jobs=n_jobs, verbose=verbose
                                   )
 

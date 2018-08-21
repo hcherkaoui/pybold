@@ -26,11 +26,27 @@ class Tracker:
         self.J.append(j)
 
 
-def fwhm(hrf_t, hrf, k=3):
+def fwhm(t_hrf, hrf, k=3):
     """Return the full width at half maximum.
+
+    Parameters:
+    -----------
+    t_hrf : 1d np.ndarray,
+        the sampling od time.
+
+    hrf : 1d np.ndarray,
+        the HRF.
+
+    k : int (default=3),
+        the degree of spline to fit the HRF.
+
+    Return:
+    -------
+    fwhm : float,
+        the FWHM
     """
     half_max = np.amax(hrf) / 2.0
-    s = splrep(hrf_t, hrf - half_max, k=k)
+    s = splrep(t_hrf, hrf - half_max, k=k)
     roots = sproot(s)
     try:
         fwhm_ = np.abs(roots[1] - roots[0])
