@@ -18,7 +18,7 @@ from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_blind_deconvolution_'
+dirname = ('results_blind_deconvolution_scaled_hrf_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -62,10 +62,10 @@ init_hrf_delta = 1.0
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'lbda_bold': 0.75,
+          'lbda_bold': 1.0,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 100,
+          'nb_iter': 300,
           'verbose': 1,
           }
 
@@ -86,6 +86,7 @@ if True:
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))

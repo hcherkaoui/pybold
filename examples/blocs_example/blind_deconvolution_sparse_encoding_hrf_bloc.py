@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from pybold.data import gen_bloc_bold
 from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import bold_blind_deconvolution
+from pybold.bold_signal import sparse_encoding_hrf_blind_blocs_deconvolution
 
 
 ###############################################################################
@@ -18,7 +18,7 @@ from pybold.bold_signal import bold_blind_deconvolution
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_blind_deconvolution_'
+dirname = ('results_blind_deconvolution_sparse_encoding_hrf_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -39,7 +39,7 @@ tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_delta = 1.0
+true_hrf_delta = 1.5
 normalized_hrf = True
 orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta)
 
@@ -74,7 +74,7 @@ params = {'noisy_ar_s': noisy_ar_s,
           }
 
 t0 = time.time()
-results = bold_blind_deconvolution(**params)
+results = sparse_encoding_hrf_blind_blocs_deconvolution(**params)
 est_ar_s, est_ai_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
@@ -89,6 +89,7 @@ if True:
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))

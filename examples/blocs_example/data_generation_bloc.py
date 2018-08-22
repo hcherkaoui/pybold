@@ -31,6 +31,7 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = res
 
 ###############################################################################
 # plotting
+
 fig = plt.figure(1, figsize=(18, 10))
 
 # axis 1

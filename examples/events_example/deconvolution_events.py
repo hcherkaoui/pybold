@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pybold.hrf_model import spm_hrf
 from pybold.data import gen_event_bold
-from pybold.bold_signal import bold_deconvolution
+from pybold.bold_signal import bold_event_deconvolution
 
 
 ###############################################################################
@@ -17,12 +17,13 @@ from pybold.bold_signal import bold_deconvolution
 print(__doc__)
 
 d = datetime.now()
-dirname = 'results_deconvolution_#{0}{1}{2}{3}{4}{5}'.format(d.year,
-                                                             d.month,
-                                                             d.day,
-                                                             d.hour,
-                                                             d.minute,
-                                                             d.second)
+dirname = ('results_deconvolution_bloc_'
+           '#{0}{1}{2}{3}{4}{5}'.format(d.year,
+                                        d.month,
+                                        d.day,
+                                        d.hour,
+                                        d.minute,
+                                        d.second))
 if not os.path.exists(dirname):
     os.makedirs(dirname)
 
@@ -32,10 +33,11 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 ###############################################################################
 # generate data
 dur = 10  # minutes
+hrf_dur = 80.
 tr = 1.0
 snr = 1.0
-delta = 0.3
-orig_hrf, _ = spm_hrf(tr=tr, delta=delta)
+delta = 1.0
+orig_hrf, _ = spm_hrf(tr=tr, delta=delta, dur=hrf_dur)
 params = {'dur': dur,
           'tr': tr,
           'hrf': orig_hrf,
@@ -49,16 +51,22 @@ noisy_ar_s, ar_s, i_s, t, _, _ = gen_event_bold(**params)
 
 ###############################################################################
 # deconvolve the signal
-lbda = 0.2
+params = {'noisy_ar_s': noisy_ar_s,
+          'tr': tr,
+          'hrf': orig_hrf,
+          'lbda': 0.2,
+          }
+
 t0 = time.time()
-est_ar_s, est_i_s, J = bold_deconvolution(noisy_ar_s, tr=tr, hrf=orig_hrf,
-                                          lbda=lbda, model_type='event')
+est_ar_s, est_i_s, J = bold_event_deconvolution(**params)
 delta_t = np.round(time.time() - t0, 3)
 runtimes = np.linspace(0, delta_t, len(J))
+
 print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))

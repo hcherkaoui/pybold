@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.bold_signal import bold_deconvolution
+from pybold.bold_signal import bold_bloc_deconvolution
 
 
 ###############################################################################
@@ -52,7 +52,7 @@ noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 # deconvolve the signal
 lbda = 1.0
 t0 = time.time()
-est_ar_s, est_ai_s, est_i_s, J = bold_deconvolution(
+est_ar_s, est_ai_s, est_i_s, J = bold_bloc_deconvolution(
                                                     noisy_ar_s, tr=tr,
                                                     hrf=orig_hrf, lbda=lbda
                                                     )
@@ -62,6 +62,7 @@ print("Duration: {0} s".format(delta_t))
 
 ###############################################################################
 # plotting
+print("Results directory: '{0}'".format(dirname))
 
 # plot 1
 fig = plt.figure(1, figsize=(20, 10))

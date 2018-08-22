@@ -7,10 +7,10 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold
+from pybold.data import gen_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.utils import fwhm
-from pybold.bold_signal import scaled_hrf_blind_events_deconvolution
+from pybold.utils import fwhm, inf_norm
+from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution_cv
 
 
 ###############################################################################
@@ -18,7 +18,7 @@ from pybold.bold_signal import scaled_hrf_blind_events_deconvolution
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_blind_deconvolution_scaled_hrf_'
+dirname = ('results_blind_deconvolution_scaled_hrf_cv_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -34,46 +34,58 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
+hrf_dur = 80.
 dur = 10  # minutes
 tr = 1.0
 snr = 1.0
 
 # True HRF
-true_hrf_delta = 0.5
-orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta)
+true_hrf_delta = 1.5
+orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
 
 # data generation
 params = {'dur': dur,
           'tr': tr,
           'hrf': orig_hrf,
           'nb_events': 5,
-          'avg_ampl': 1,
-          'std_ampl': 3,
+          'avg_dur': 1,
+          'std_dur': 3,
+          'overlapping': False,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, ar_s, i_s, t, _, _ = gen_event_bold(**params)
+noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
 init_hrf_delta = 1.0
-init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta)
+init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'lbda_bold': 0.25,
+          't_hrf': t_hrf,
+          'orig_hrf': orig_hrf,
           'init_delta': init_hrf_delta,
-          'dur_hrf': 60.0,
-          'nb_iter': 50,
-          'verbose': 1,
+          'dur_hrf': hrf_dur,
+          'nb_iter': 100,
+          'n_jobs': -1,
+          'verbose': 10,
           }
 
 t0 = time.time()
-results = scaled_hrf_blind_events_deconvolution(**params)
-est_ar_s, est_i_s, est_hrf, J = results
+params, results = scaled_hrf_blind_blocs_deconvolution_cv(**params)
+est_ar_s, est_ai_s, est_i_s, est_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
 
 print("Duration: {0:.2f} s".format(delta_t))
+print("Best lbda: {0}".format(params['lbda_bold']))
+
+###############################################################################
+# post-processing
+if True:
+    est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
+                                                     est_i_s, est_hrf])
+    ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
 
 ###############################################################################
 # plotting
@@ -108,8 +120,10 @@ ax1.set_title("Estimated convolved signals, TR={0}s".format(tr),
 # axis 2
 ax2 = fig.add_subplot(3, 1, 3)
 label = "Orig. activation inducing signal, snr={0}dB".format(snr)
+ax2.plot(t, ai_s, '-b', label=label, linewidth=2.0)
+ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal",
+         linewidth=2.0)
 ax2.stem(t, est_i_s, '-g', label="Est. innovation signal")
-ax2.stem(t, i_s, '-b', label="Orig. innovation signal")
 ax2.axhline(0.0)
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
@@ -127,10 +141,12 @@ plt.savefig(filename)
 fig = plt.figure(2, figsize=(15, 10))
 t_hrf = np.linspace(0, len(orig_hrf) * tr, len(orig_hrf))
 
-label = "Orig. HRF (FWHM={0:.2f}s)".format(fwhm(t_hrf, orig_hrf))
+label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
 plt.plot(t_hrf, orig_hrf, '-b', label=label)
-label = "Est. HRF (FWHM={0:.2f}s)".format(fwhm(t_hrf, est_hrf))
+label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
 plt.plot(t_hrf, est_hrf, '-*g', label=label)
+label = "Init. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, init_hrf))
+plt.plot(t_hrf, init_hrf, '--r', label=label)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
