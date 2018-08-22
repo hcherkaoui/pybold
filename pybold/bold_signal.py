@@ -210,10 +210,7 @@ def bold_event_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    Integ = DiscretInteg()
-    H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
-                      dim_out=len(noisy_ar_s))
-
+    H = Conv(hrf, len(noisy_ar_s))
     z0 = np.zeros(len(noisy_ar_s))
 
     prox = L1Norm(lbda)
@@ -904,7 +901,7 @@ def scaled_hrf_blind_blocs_deconvolution_cv( # noqa
 
     true_fwhm = fwhm(t_hrf, orig_hrf)
     errs_fwhm = []
-    for (est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J) in res:
+    for (est_ar_s, est_ai_s, est_i_s, est_hrf, J) in res:
         curr_fwhm = fwhm(t_hrf, est_hrf)
         errs_fwhm.append(np.abs(curr_fwhm - true_fwhm))
     idx_best = np.argmin(np.array(errs_fwhm))
