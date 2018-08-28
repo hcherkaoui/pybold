@@ -446,11 +446,11 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
 # Blind deconvolution
 
 
-def sparse_encoding_hrf_blind_blocs_deconvolution(
-                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
-                        lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
-                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
-                        verbose=0):
+def sparse_encoding_hrf_blind_blocs_deconvolution( # noqa
+                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
+                        lbda_hrf=1.0, init_hrf=None, init_i_s=None,
+                        hrf_fixed_ampl=False, nb_iter=50, early_stopping=False,
+                        wind=24, tol=1.0e-24, verbose=0):
     """ BOLD blind deconvolution function based on a sparse encoding HRF model
     and an blocs BOLD model.
     """
@@ -460,27 +460,35 @@ def sparse_encoding_hrf_blind_blocs_deconvolution(
 
     # initialization of the HRF
     if init_hrf is None:
-        est_hrf, _, _ = spm_hrf(tr=tr, time_length=30.0)  # init hrf
+        est_hrf, _, _ = spm_hrf(tr=tr, delta=1.0)  # init hrf
     else:
         est_hrf = init_hrf
+    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
 
     # get the usefull dimension encounter in the problem
     len_hrf, nb_atoms_hrf = hrf_dico.shape
     N = len(noisy_ar_s)
+    # definition of the usefull operator
+    Integ = DiscretInteg()
+    prox_bold = L1Norm(lbda_bold)
 
-    J = []
+    # initialization of the source signal
+    if init_i_s is None:
+        est_i_s = np.zeros(N)  # init spiky signal
+        est_ai_s = np.zeros(N)
+        est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    else:
+        est_i_s = init_i_s
+        est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
     # definition of the usefull operator
     Integ = DiscretInteg()
     prox_bold = L1Norm(lbda_bold)
     prox_hrf = L1Norm(lbda_hrf)
 
-    # initialization of the signal of interess
-    est_i_s = np.zeros(N)  # init spiky signal
-    est_ar_s = np.zeros(N)  # thus.. init convolved signal
-    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
-
     # init cost function value
+    J = []
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
     if not hrf_fixed_ampl:
@@ -492,7 +500,6 @@ def sparse_encoding_hrf_blind_blocs_deconvolution(
     for idx in range(nb_iter):
 
         # BOLD deconvolution
-        Integ = DiscretInteg()
         H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
 
         v0 = est_i_s
@@ -556,11 +563,11 @@ def sparse_encoding_hrf_blind_blocs_deconvolution(
     return est_ar_s, est_ai_s, est_i_s, est_hrf, est_sparse_encoding_hrf, J
 
 
-def sparse_encoding_hrf_blind_events_deconvolution(
-                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0, # noqa
-                        lbda_hrf=1.0, init_hrf=None, hrf_fixed_ampl=False,
-                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
-                        verbose=0):
+def sparse_encoding_hrf_blind_events_deconvolution( # noqa
+                        noisy_ar_s, tr, hrf_dico, lbda_bold=1.0,
+                        lbda_hrf=1.0, init_hrf=None, init_i_s=None,
+                        hrf_fixed_ampl=False, nb_iter=50, early_stopping=False,
+                        wind=24, tol=1.0e-24, verbose=0):
     """ BOLD blind deconvolution function based on a sparse encoding HRF model
     and an events BOLD model.
     """
@@ -570,26 +577,29 @@ def sparse_encoding_hrf_blind_events_deconvolution(
 
     # initialization of the HRF
     if init_hrf is None:
-        est_hrf, _, _ = spm_hrf(tr=tr, time_length=30.0)  # init hrf
+        est_hrf, _, _ = spm_hrf(tr=tr, delta=1.0)  # init hrf
     else:
         est_hrf = init_hrf
+    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
 
     # get the usefull dimension encounter in the problem
     len_hrf, nb_atoms_hrf = hrf_dico.shape
     N = len(noisy_ar_s)
 
-    J = []
+    # initialization of the source signal
+    if init_i_s is None:
+        est_i_s = np.zeros(N)  # init spiky signal
+        est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    else:
+        est_i_s = init_i_s
+        est_ar_s = Conv(est_hrf, N).op(est_i_s)
 
     # definition of the usefull operator
     prox_bold = L1Norm(lbda_bold)
     prox_hrf = L1Norm(lbda_hrf)
 
-    # initialization of the signal of interess
-    est_i_s = np.zeros(N)  # init spiky signal
-    est_ar_s = np.zeros(N)  # thus.. init convolved signal
-    est_sparse_encoding_hrf = hrf_dico.adj(est_hrf)  # sparse encoding init hrf
-
     # init cost function value
+    J = []
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
     if not hrf_fixed_ampl:
@@ -665,8 +675,9 @@ def sparse_encoding_hrf_blind_events_deconvolution(
 
 def scaled_hrf_blind_blocs_deconvolution(
                         noisy_ar_s, tr, lbda_bold=1.0, # noqa
-                        init_delta=None, dur_hrf=60.0, nb_iter=50,
-                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+                        init_delta=None, init_i_s=None, dur_hrf=60.0,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
@@ -675,17 +686,22 @@ def scaled_hrf_blind_blocs_deconvolution(
     est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
 
     N = len(noisy_ar_s)
-    J = []
-
     # definition of the usefull operator
     Integ = DiscretInteg()
     prox_bold = L1Norm(lbda_bold)
 
-    # initialization of the signal of interess
-    est_i_s = np.zeros(N)  # init spiky signal
-    est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    # initialization of the source signal
+    if init_i_s is None:
+        est_i_s = np.zeros(N)  # init spiky signal
+        est_ai_s = np.zeros(N)  # init spiky signal
+        est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    else:
+        est_i_s = init_i_s
+        est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
     # init cost function value
+    J = []
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
     J.append(0.5 * r + lbda_bold * g_bold)
@@ -693,7 +709,6 @@ def scaled_hrf_blind_blocs_deconvolution(
     for idx in range(nb_iter):
 
         # BOLD deconvolution
-        Integ = DiscretInteg()
         H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
 
         v0 = est_i_s
@@ -743,8 +758,9 @@ def scaled_hrf_blind_blocs_deconvolution(
 
 def scaled_hrf_blind_events_deconvolution(
                         noisy_ar_s, tr, lbda_bold=1.0, # noqa
-                        init_delta=None, dur_hrf=60.0, nb_iter=50,
-                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+                        init_delta=None, init_i_s=None, dur_hrf=60.0,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     events BOLD model.
     """
@@ -753,16 +769,20 @@ def scaled_hrf_blind_events_deconvolution(
     est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
 
     N = len(noisy_ar_s)
-    J = []
+
+    # initialization of the source signal
+    if init_i_s is None:
+        est_i_s = np.zeros(N)  # init spiky signal
+        est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    else:
+        est_i_s = init_i_s
+        est_ar_s = Conv(est_hrf, len(est_i_s)).op(est_i_s)
 
     # definition of the usefull operator
     prox_bold = L1Norm(lbda_bold)
 
-    # initialization of the signal of interess
-    est_i_s = np.zeros(N)  # init spiky signal
-    est_ar_s = np.zeros(N)  # thus.. init convolved signal
-
     # init cost function value
+    J = []
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     g_bold = np.sum(np.abs(est_i_s))
     J.append(0.5 * r + lbda_bold * g_bold)
@@ -821,17 +841,18 @@ def sparse_encoding_hrf_blind_events_deconvolution_cv( # noqa
                     noisy_ar_s, tr, hrf_dico, t_hrf, orig_hrf,
                     lbda_bold=list(np.linspace(5.0e-2, 5.0, 5)),
                     lbda_hrf=list(np.linspace(5.0e-2, 5.0, 5)),
-                    init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
-                    early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
-                    verbose=0):
+                    init_hrf=None, init_i_s=None, hrf_fixed_ampl=False,
+                    nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                    n_jobs=1, verbose=0):
     """ Cross-validated BOLD blind deconvolution function based on a sparse
     encoding HRF model and an events BOLD model.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
                   'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
-                  'init_hrf': init_hrf, 'hrf_fixed_ampl': hrf_fixed_ampl,
-                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
-                  'wind': wind, 'tol': tol, 'verbose': 0}
+                  'init_hrf': init_hrf, 'init_i_s': init_i_s,
+                  'hrf_fixed_ampl': hrf_fixed_ampl, 'nb_iter': nb_iter,
+                  'early_stopping': early_stopping, 'wind': wind, 'tol': tol,
+                  'verbose': 0}
 
     list_kwargs, res = grid_search(
                         sparse_encoding_hrf_blind_events_deconvolution,
@@ -852,17 +873,18 @@ def sparse_encoding_hrf_blind_blocs_deconvolution_cv( # noqa
                     noisy_ar_s, tr, hrf_dico, t_hrf, orig_hrf,
                     lbda_bold=list(np.linspace(5.0e-2, 5.0, 5)),
                     lbda_hrf=list(np.linspace(5.0e-2, 5.0, 5)),
-                    init_hrf=None, hrf_fixed_ampl=False, nb_iter=50,
-                    early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
-                    verbose=0):
+                    init_hrf=None, init_i_s=None, hrf_fixed_ampl=False,
+                    nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                    n_jobs=1, verbose=0):
     """ Cross-validated BOLD blind deconvolution function based on a sparse
     encoding HRF model and an blocs BOLD model.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'hrf_dico': hrf_dico,
                   'lbda_bold': lbda_bold, 'lbda_hrf': lbda_hrf,
-                  'init_hrf': init_hrf, 'hrf_fixed_ampl': hrf_fixed_ampl,
-                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
-                  'wind': wind, 'tol': tol, 'verbose': 0}
+                  'init_hrf': init_hrf, 'init_i_s': init_i_s,
+                  'hrf_fixed_ampl': hrf_fixed_ampl, 'nb_iter': nb_iter,
+                  'early_stopping': early_stopping, 'wind': wind, 'tol': tol,
+                  'verbose': 0}
 
     list_kwargs, res = grid_search(
                         sparse_encoding_hrf_blind_blocs_deconvolution,
@@ -882,17 +904,18 @@ def sparse_encoding_hrf_blind_blocs_deconvolution_cv( # noqa
 def scaled_hrf_blind_blocs_deconvolution_cv( # noqa
                         noisy_ar_s, tr, t_hrf, orig_hrf,
                         lbda_bold=list(np.linspace(5.0e-2, 5.0, 4)), # noqa
-                        init_delta=None, dur_hrf=60.0, nb_iter=50,
-                        early_stopping=False, wind=24, tol=1.0e-24, n_jobs=1,
-                        verbose=0):
+                        init_delta=None, init_i_s=None, dur_hrf=60.0,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        n_jobs=1, verbose=0):
 
     """ Cross-validated BOLD blind deconvolution function based on a scaled
     HRF model and an blocs BOLD model.
     """
     param_grid = {'noisy_ar_s': noisy_ar_s, 'tr': tr, 'lbda_bold': lbda_bold,
-                  'init_delta': init_delta, 'dur_hrf': dur_hrf,
-                  'nb_iter': nb_iter, 'early_stopping': early_stopping,
-                  'wind': wind, 'tol': tol, 'verbose': 0}
+                  'init_delta': init_delta, 'init_i_s': init_i_s,
+                  'dur_hrf': dur_hrf, 'nb_iter': nb_iter,
+                  'early_stopping': early_stopping, 'wind': wind, 'tol': tol,
+                  'verbose': 0}
 
     list_kwargs, res = grid_search(
                         scaled_hrf_blind_blocs_deconvolution,
