@@ -682,7 +682,7 @@ def scaled_hrf_blind_blocs_deconvolution(
     blocs BOLD model.
     """
     # initialization of the HRF
-    est_delta = init_delta if init_delta is None else 1.0
+    est_delta = init_delta if init_delta is not None else 1.0
     est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
 
     N = len(noisy_ar_s)
@@ -765,7 +765,7 @@ def scaled_hrf_blind_events_deconvolution(
     events BOLD model.
     """
     # initialization of the HRF
-    est_delta = init_delta if init_delta is None else 1.0
+    est_delta = init_delta if init_delta is not None else 1.0
     est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
 
     N = len(noisy_ar_s)
