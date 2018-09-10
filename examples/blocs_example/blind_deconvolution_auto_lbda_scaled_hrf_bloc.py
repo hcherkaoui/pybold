@@ -7,10 +7,10 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_rnd_event_bold
-from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
+from pybold.data import gen_regular_bloc_bold
+from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import bold_blind_deconvolution_cv
+from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution_auto_lbda
 
 
 ###############################################################################
@@ -18,7 +18,7 @@ from pybold.bold_signal import bold_blind_deconvolution_cv
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_blind_deconvolution_sparse_encoding_hrf_cv_'
+dirname = ('results_blind_deconvolution_scaled_hrf_auto_lbda_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -34,63 +34,47 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
+hrf_dur = 30.
 dur = 10  # minutes
 tr = 1.0
 snr = 1.0
 
-# True HRF
-true_hrf_time_length = 20.0
-normalized_hrf = True
-orig_hrf, t_hrf, _ = spm_hrf(tr, time_length=true_hrf_time_length,
-                             normalized_hrf=normalized_hrf)
-len_hrf = len(orig_hrf)
-
-# dict of HRF
-hrf_dico = gen_hrf_spm_dict_normalized(tr=tr)
-
-# data generation
-params = {'dur': dur,
-          'tr': tr,
-          'hrf': orig_hrf,
-          'nb_events': 5,
-          'avg_ampl': 1,
-          'std_ampl': 3,
+true_hrf_delta = 1.5
+orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
+params = {'tr': tr,
+          'dur': dur,
           'snr': snr,
-          'random_state': 9,
+          'hrf': orig_hrf,
+          'random_state': 0,
           }
-noisy_ar_s, ar_s, i_s, t, _, _ = gen_rnd_event_bold(**params)
+noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_time_length = 30.0
-init_hrf, _, _ = spm_hrf(tr=tr, time_length=init_hrf_time_length)
+init_hrf_delta = 1.0
+init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'hrf_dico': hrf_dico,
-          'init_hrf': init_hrf,
-          'hrf_fixed_ampl': False,
-          'nb_iter': 150,
-          'model_type': 'event',
-          'n_jobs': -1,
-          't_hrf': t_hrf,
-          'orig_hrf': orig_hrf,
-          'verbose': 3,
+          'init_delta': init_hrf_delta,
+          'dur_hrf': hrf_dur,
+          'nb_iter': 50,
+          'verbose': 1,
           }
 
 t0 = time.time()
-params, results = bold_blind_deconvolution_cv(**params)
-est_ar_s, est_i_s, est_hrf, sparse_encoding_hrf, J = results
+results = scaled_hrf_blind_blocs_deconvolution_auto_lbda(**params)
+est_ar_s, est_ai_s, est_i_s, est_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
+
 print("Duration: {0:.2f} s".format(delta_t))
-print("Best lbda_hrf={0}, best lbda_bold={1}".format(params['lbda_hrf'],
-                                                     params['lbda_bold']))
 
 ###############################################################################
 # post-processing
 if True:
-    est_ar_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_i_s, est_hrf])
-    ar_s, orig_hrf = inf_norm([ar_s, orig_hrf])
+    est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
+                                                     est_i_s, est_hrf])
+    ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
 
 ###############################################################################
 # plotting
@@ -102,7 +86,7 @@ fig = plt.figure(1, figsize=(20, 10))
 # axis 1
 ax0 = fig.add_subplot(3, 1, 1)
 label = "Noisy activation related signal, snr={0}dB".format(snr)
-ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=2.0)
+ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=1.0)
 ax0.axhline(0.0)
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
@@ -112,9 +96,9 @@ ax0.set_title("Input noisy BOLD signals, TR={0}s".format(tr), fontsize=15)
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
 label = "Orig. activation related signal"
-ax1.plot(t, ar_s, '-b', label=label, linewidth=2.0)
+ax1.plot(t, ar_s, '-b', label=label, linewidth=1.0)
 ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=2.0)
+         linewidth=1.0)
 ax1.axhline(0.0)
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
@@ -125,8 +109,10 @@ ax1.set_title("Estimated convolved signals, TR={0}s".format(tr),
 # axis 2
 ax2 = fig.add_subplot(3, 1, 3)
 label = "Orig. activation inducing signal, snr={0}dB".format(snr)
+ax2.plot(t, ai_s, '-b', label=label, linewidth=1.0)
+ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal",
+         linewidth=1.0)
 ax2.stem(t, est_i_s, '-g', label="Est. innovation signal")
-ax2.stem(t, i_s, '-b', label="Orig. innovation signal")
 ax2.axhline(0.0)
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
@@ -144,41 +130,25 @@ plt.savefig(filename)
 fig = plt.figure(2, figsize=(15, 10))
 t_hrf = np.linspace(0, len(orig_hrf) * tr, len(orig_hrf))
 
-label = "Orig. HRF (FWHM={0:.2f}s)".format(fwhm(t_hrf, orig_hrf))
+label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
 plt.plot(t_hrf, orig_hrf, '-b', label=label)
-label = ("Est. HRF (FWHM={0:.2f}s, |x|_1={1:.2f},"
-         "sum_i x_i={2:.2f})".format(fwhm(t_hrf, est_hrf),
-                                     np.sum(np.abs(sparse_encoding_hrf)),
-                                     np.sum(sparse_encoding_hrf)))
+label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
 plt.plot(t_hrf, est_hrf, '-*g', label=label)
+label = "Init. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, init_hrf))
+plt.plot(t_hrf, init_hrf, '--r', label=label)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
 plt.title("Original HRF, TR={0}s".format(tr), fontsize=20)
 
-filename = "est_hrf_{0}.png".format(true_hrf_time_length)
+filename = "est_hrf_{0}.png".format(true_hrf_delta)
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
 # plot 3
-fig = plt.figure(3, figsize=(15, 10))
-
-plt.stem(sparse_encoding_hrf, '-*b', label="Est. coef")
-plt.xlabel("FWHM of the atoms")
-plt.ylabel("ampl.")
-plt.legend()
-plt.title("Est. sparse encoding HRF\n(ordered from tighter to the larger)",
-          fontsize=20)
-
-filename = "sparse_encoding_hrf_{0}.png".format(true_hrf_time_length)
-filename = os.path.join(dirname, filename)
-print("Saving plot under '{0}'".format(filename))
-plt.savefig(filename)
-
-# plot 4
-fig = plt.figure(4, figsize=(20, 10))
-plt.plot(runtimes, J)
+fig = plt.figure(4, figsize=(5, 5))
+plt.plot(runtimes, J, linewidth=6.0)
 plt.xlabel("times (s)")
 plt.ylabel("cost function")
 plt.title("Evolution of the cost function")

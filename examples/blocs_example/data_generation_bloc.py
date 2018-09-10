@@ -2,7 +2,7 @@
 """ Data generation example.
 """
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold
+from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm
 
@@ -26,7 +26,7 @@ params = {'dur': dur_orig,
           'random_state': 0,
           }
 
-res = gen_bloc_bold(**params)
+res = gen_rnd_bloc_bold(**params)
 noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = res
 
 ###############################################################################

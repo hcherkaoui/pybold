@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold
+from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import gen_hrf_spm_dict_normalized, spm_hrf
 from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import sparse_encoding_hrf_blind_blocs_deconvolution
@@ -57,7 +57,7 @@ params = {'dur': dur,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
+noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_rnd_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution

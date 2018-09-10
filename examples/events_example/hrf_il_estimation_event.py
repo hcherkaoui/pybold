@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold
+from pybold.data import gen_rnd_event_bold
 from pybold.hrf_model import il_hrf
 from pybold.bold_signal import hrf_il_estimation
 from pybold.utils import fwhm
@@ -52,7 +52,7 @@ params = {'dur': dur,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, _, i_s, t, _, _ = gen_event_bold(**params)
+noisy_ar_s, _, i_s, t, _, _ = gen_rnd_event_bold(**params)
 
 
 ###############################################################################

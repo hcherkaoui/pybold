@@ -2,7 +2,7 @@
 """ Data generation example.
 """
 import matplotlib.pyplot as plt
-from pybold.data import gen_event_bold
+from pybold.data import gen_rnd_event_bold
 from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm
 
@@ -25,7 +25,7 @@ params = {'dur': dur_orig,
           'random_state': 0,
           }
 
-res = gen_event_bold(**params)
+res = gen_rnd_event_bold(**params)
 noisy_ar_s, ar_s, i_s, t, _, noise = res
 
 ###############################################################################

@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold
+from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution
@@ -39,22 +39,15 @@ dur = 10  # minutes
 tr = 1.0
 snr = 1.0
 
-# True HRF
 true_hrf_delta = 1.5
 orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
-
-# data generation
-params = {'dur': dur,
-          'tr': tr,
-          'hrf': orig_hrf,
-          'nb_events': 5,
-          'avg_dur': 1,
-          'std_dur': 3,
-          'overlapping': False,
+params = {'tr': tr,
+          'dur': dur,
           'snr': snr,
-          'random_state': 9,
+          'hrf': orig_hrf,
+          'random_state': 0,
           }
-noisy_ar_s, ar_s, ai_s, _, t, _, _ = gen_bloc_bold(**params)
+noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
@@ -62,10 +55,10 @@ init_hrf_delta = 1.0
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'lbda_bold': 1.0,
+          'lbda_bold': 0.27,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 300,
+          'nb_iter': 100,
           'verbose': 1,
           }
 
@@ -94,7 +87,7 @@ fig = plt.figure(1, figsize=(20, 10))
 # axis 1
 ax0 = fig.add_subplot(3, 1, 1)
 label = "Noisy activation related signal, snr={0}dB".format(snr)
-ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=2.0)
+ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=1.0)
 ax0.axhline(0.0)
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
@@ -104,9 +97,9 @@ ax0.set_title("Input noisy BOLD signals, TR={0}s".format(tr), fontsize=15)
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
 label = "Orig. activation related signal"
-ax1.plot(t, ar_s, '-b', label=label, linewidth=2.0)
+ax1.plot(t, ar_s, '-b', label=label, linewidth=1.0)
 ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=2.0)
+         linewidth=1.0)
 ax1.axhline(0.0)
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
@@ -117,9 +110,9 @@ ax1.set_title("Estimated convolved signals, TR={0}s".format(tr),
 # axis 2
 ax2 = fig.add_subplot(3, 1, 3)
 label = "Orig. activation inducing signal, snr={0}dB".format(snr)
-ax2.plot(t, ai_s, '-b', label=label, linewidth=2.0)
+ax2.plot(t, ai_s, '-b', label=label, linewidth=1.0)
 ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal",
-         linewidth=2.0)
+         linewidth=1.0)
 ax2.stem(t, est_i_s, '-g', label="Est. innovation signal")
 ax2.axhline(0.0)
 ax2.set_xlabel("time (s)")
@@ -155,8 +148,8 @@ print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
 # plot 3
-fig = plt.figure(4, figsize=(20, 10))
-plt.plot(runtimes, J)
+fig = plt.figure(4, figsize=(5, 5))
+plt.plot(runtimes, J, linewidth=6.0)
 plt.xlabel("times (s)")
 plt.ylabel("cost function")
 plt.title("Evolution of the cost function")

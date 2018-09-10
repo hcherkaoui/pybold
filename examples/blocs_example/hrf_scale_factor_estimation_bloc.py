@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from pybold.data import gen_bloc_bold
+from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.bold_signal import hrf_scale_factor_estimation
 from pybold.utils import fwhm
@@ -54,7 +54,7 @@ params = {'dur': dur,
           'snr': snr,
           'random_state': 9,
           }
-noisy_ar_s, _, ai_s, _, t, _, _ = gen_bloc_bold(**params)
+noisy_ar_s, _, ai_s, _, t, _, _ = gen_rnd_bloc_bold(**params)
 
 
 ###############################################################################
