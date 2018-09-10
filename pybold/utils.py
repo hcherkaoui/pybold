@@ -7,6 +7,7 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.linalg import norm as norm_2
 from scipy.interpolate import splrep, sproot
+import pywt
 
 
 def _default_wrapper(recons_func, **kwargs):
@@ -78,6 +79,24 @@ def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
                    delayed(wrapper)(func, **kwargs)
                    for kwargs in list_kwargs)
     return list_kwargs, res
+
+
+def mad(x, c=0.6744):
+    """ Median absolute deviation.
+    """
+    return np.median(np.abs(x - np.median(x))) / c
+
+
+def mad_daub_noise_est(x, c=0.6744):
+    """ Estimate the statistical dispersion of the noise with Median Absolute
+    Deviation on the first order detail coefficients of the 1d-Daubechies
+    wavelets transform.
+    """
+    try:
+        _, cD = pywt.wavedec(x, pywt.Wavelet('db3'), level=1)
+    except ValueError:
+        cD = pywt.wavedec(x, pywt.Wavelet('db3'), level=0)
+    return mad(cD, c=c)
 
 
 class Tracker:
