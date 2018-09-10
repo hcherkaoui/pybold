@@ -2,7 +2,9 @@
 """ This module gathers the definition of the HRF operator.
 """
 import numpy as np
-from .convolution import toeplitz_from_kernel
+from .convolution import (toeplitz_from_kernel, spectral_deconvolve,
+                          spectral_retro_deconvolve, spectral_convolve,
+                          spectral_retro_convolve)
 
 
 class Identity():
@@ -206,10 +208,125 @@ class Conv:
         return self.K.T.dot(x)
 
 
+class Deconv:
+    """ Convolutional operator.
+    """
+    def __init__(self, kernel, dim_in=None):
+        """ Conv linear operator class.
+        Parameters:
+        -----------
+        kernel : 1d np.ndarray,    kernel.
+
+        dim_in : int,
+            chosen dimension image dimension.
+        """
+        self.k = kernel
+        self.K = np.linalg.pinv(toeplitz_from_kernel(self.k, dim_in=dim_in))
+
+    def op(self, x):
+        """ Return k.convolve(x).
+
+        Parameters:
+        -----------
+        x : 1d np.ndarray,
+            signal.
+
+        Results:
+        --------
+        k_conv_x : np.ndarray,
+            the convolved 1d vector.
+        """
+        return self.K.dot(x)
+
+    def adj(self, x):
+        """ Return k.T.convolve(x).
+
+        Parameters:
+        -----------
+        x : 1d np.ndarray,
+            signal.
+
+        Results:
+        --------
+        k_conv_x : np.ndarray,
+            the adj-convolved 1d vector.
+        """
+        return self.K.T.dot(x)
+
+
+class LinearAndDeconv:
+    """ Linear operator followed by an adjoint deconvolutional operator.
+    """
+    def __init__(self, M, kernel, dim_in, dim_out=None, spectral_convol=True):
+        """ Conv linear operator class.
+        Parameters:
+        -----------
+        M : Matrix class,
+            the first linear operator.
+
+        kernel : 1d np.ndarray,
+            kernel.
+
+        dim_in : int,
+            chosen convolution input dimension.
+
+        dim_out : int (default None),
+            chosen convolution ouput dimension.
+        """
+        self.M = M
+        self.k = kernel
+        K = toeplitz_from_kernel(self.k, dim_in=dim_in, dim_out=dim_out)
+        self.inv_K = np.linalg.pinv(K)
+        self.spectral_convol = spectral_convol
+
+    def op(self, x):
+        """ Return k.adj_deconvolve(x).
+
+        Parameters:
+        -----------
+        x : 1d np.ndarray,
+            signal.
+
+        Results:
+        --------
+        k_conv_x : np.ndarray,
+            the adjoint deconvolved 1d vector.
+        """
+        if self.spectral_convol:
+            deconv_signal = spectral_deconvolve(self.k, x)
+        else:
+            deconv_signal = self.inv_K.dot(x)
+
+        return self.M.op(deconv_signal)
+
+    def adj(self, x):
+        """ Return k.T.adj_deconvolve(x).
+
+        Parameters:
+        -----------
+        x : 1d np.ndarray,
+            signal.
+
+        Results:
+        --------
+        k_conv_x : np.ndarray,
+            the deconvolved 1d vector.
+        """
+        retro_diff_signal = self.M.adj(x)
+
+        if self.spectral_convol:
+            retro_deconv_signal = spectral_retro_deconvolve(self.k,
+                                                            retro_diff_signal)
+        else:
+            retro_deconv_signal = self.inv_K.T.dot(retro_diff_signal)
+
+        return retro_deconv_signal
+
+
 class ConvAndLinear:
     """ Linear (Matrix) operator followed by a convolution.
     """
-    def __init__(self, M, kernel, dim_in, dim_out=None):
+    def __init__(self, M, kernel, dim_in, dim_out=None, spectral_convol=True):
         """ ConvAndLinear linear operator class.
         Parameters:
         -----------
@@ -225,9 +342,12 @@ class ConvAndLinear:
         dim_out : int (default None),
             chosen convolution ouput dimension.
         """
-        self.M = M  # dictionary of HRF for sparce encoding
-        self.k = kernel  # kernel of convolution
-        self.K = toeplitz_from_kernel(self.k, dim_in=dim_in, dim_out=dim_out)
+        self.M = M
+        self.k = kernel
+        self.spectral_convol = spectral_convol
+        if not self.spectral_convol:
+            self.K = toeplitz_from_kernel(self.k, dim_in=dim_in,
+                                          dim_out=dim_out)
 
     def op(self, x):
         """ Return k.convolve(D_hrf.dot(x)).
@@ -242,7 +362,14 @@ class ConvAndLinear:
         img_x : np.ndarray,
             the resulting 1d vector.
         """
-        return self.K.dot(self.M.op(x))
+        bloc_signal = self.M.op(x)
+
+        if self.spectral_convol:
+            convolved_signal = spectral_convolve(self.k, bloc_signal)
+        else:
+            convolved_signal = self.K.dot(bloc_signal)
+
+        return convolved_signal
 
     def adj(self, x):
         """ Return k.T.convolve(D_hrf.T.dot(x)).
@@ -257,4 +384,9 @@ class ConvAndLinear:
         img_x : np.ndarray,
             the resulting 1d vector.
         """
-        return self.M.adj(self.K.T.dot(x))
+        if self.spectral_convol:
+            retro_convolved_signal = spectral_retro_convolve(self.k, x)
+        else:
+            retro_convolved_signal = self.K.T.dot(x)
+
+        return self.M.adj(retro_convolved_signal)

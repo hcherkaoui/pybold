@@ -1,8 +1,10 @@
 # coding: utf-8
 """ This module gathers usefull optimisation functions.
 """
+import matplotlib.pyplot as plt
 import numpy as np
-from .utils import spectral_radius_est
+from .utils import spectral_radius_est, mad_daub_noise_est
+from .linear import DiscretInteg, Conv
 
 
 def condatvu(grad, L, prox,  x0, z0, w=None, sigma=0.5, tau=None, #noqa
@@ -245,7 +247,7 @@ def forward_backward(grad, prox, v0=None, w=None, nb_iter=9999, #noqa
 
 def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
                               early_stopping=True, wind=8, tol=1.0e-8,
-                              verbose=0):
+                              verbose=0, plotting=False):
     """ Nesterov forward backward algorithm.
     Minimize on x:
         grad.cost(x) - prox.w * prox.f(L.op(x))
@@ -286,6 +288,8 @@ def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
     J : np.ndarray,
         Cost function values.
     """
+    N = len(grad.y)
+
     if wind < 2:
         raise ValueError("wind should at least 2, got {0}".format(wind))
 
@@ -297,6 +301,10 @@ def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
     # main loop
     if verbose > 2:
         print("running main loop...")
+
+    if plotting:
+        fig = plt.figure(99, figsize=(15, 15))
+        plt.ion()
 
     for j in range(nb_iter):
 
@@ -310,6 +318,45 @@ def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
         # update iterates
         t_old = t
         z_old = z
+
+        i_s = v
+        ai_s = grad.L.M.op(i_s)
+        ar_s = Conv(grad.L.k, N).op(ai_s)
+
+        # plotting
+        if plotting and (j % int(nb_iter / 100) == 0):
+
+            plt.gcf().clear()
+            ax1 = fig.add_subplot(4, 1, 1)
+            ax1.plot(ar_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax1.set_title("Estimated activity relating signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax2 = fig.add_subplot(4, 1, 2)
+            ax2.plot(i_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax2.set_title("Estimated innovation signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax3 = fig.add_subplot(4, 1, 3)
+            ax3.plot(ai_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax3.set_title("Estimated activation inducing signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax4 = fig.add_subplot(4, 1, 4)
+            ax4.plot(v, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax4.set_title("(Delta_L^T)^-1((x-y)/lambda) "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            plt.tight_layout()
+            plt.pause(0.1)
 
         # iterate update and saving
         xx.append(v)
@@ -338,7 +385,325 @@ def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
                               "cost function = {2}".format(j, nb_iter, J[j]))
                     break
 
+    if plotting:
+        plt.ioff()
+
     return v, np.array(J)
+
+
+def fgp_dev(y, L, lbda=None, mu=1.0e-3, x0=None, v0=None, w=None, #noqa
+            nb_iter=9999, early_stopping=True, wind=8, eps=1.0e-8,
+            verbose=True, plotting=False):
+    """ Fast Gradient Projection algorithm.
+
+    Parameters
+    ----------
+
+    Results
+    -------
+
+    """
+    # to use the heuristic lbda update
+    adaptative_lbda = (lbda is None)
+    if adaptative_lbda:
+        sigma = mad_daub_noise_est(y)
+        lbda_update_eps = sigma*np.sqrt(len(y)) * 1.0e-5
+        lbda = sigma
+
+    if wind < 2:
+        raise ValueError("wind should at least 2, got {0}".format(wind))
+
+    # prepare the iterate
+    t = t_old = 1
+
+    # iterates declarations
+    if (v0 is not None) and (x0 is not None):
+        print("Warning: Dual and primal init value given: "
+              "will ignore the primal")
+        v = v0
+    elif v0 is not None:
+        v = v0
+    elif x0 is not None:
+        v = L.op((1/lbda) * y - x0)
+    else:
+        v = np.zeros_like(y)
+    z_old = np.zeros_like(v)
+
+    # additional weights
+    if w is None:
+        w = np.ones_like(v)
+
+    # saving variables
+    J = np.zeros(nb_iter)
+    R = np.zeros(nb_iter)
+    lbdas = np.zeros(nb_iter)
+    I_S = np.zeros((nb_iter, len(y)))
+
+    # precompute L.op(y)
+    L_y = L.op(y)
+
+    if plotting:
+        fig = plt.figure(99, figsize=(15, 15))
+        plt.ion()
+
+    # main loop
+    for j in range(nb_iter):
+
+        # main update
+        z = (mu/lbda) * L_y + v - mu * L.op(L.adj(v))
+        z = np.clip(z, -1.0/w, 1.0/w)  # w is additional weights
+
+        # fista acceleration
+        t = 0.5 * (1 + np.sqrt(1 + 4*t_old**2))
+        v = z + (t_old-1)/t * (z - z_old)
+
+        # iterate update and saving
+        ar_s = y - lbda * L.adj(v)
+        r = np.linalg.norm(ar_s-y)
+        g = np.sum(np.abs(L.op(ar_s)))
+        R[j] = r
+        J[j] = 0.5 * r**2 + lbda * g
+
+        if verbose:
+            print("Iteration {0} / {1}, loss = {2}".format(j+1, nb_iter, J[j]))
+
+        # clearly recover each signals to retrieve proper outputs
+        i_s = L.op(ar_s)
+        ai_s = np.cumsum(i_s)
+        I_S[j, :] = i_s
+
+        # lbda heuristic
+        if adaptative_lbda:
+            gap_noise_estim = np.abs(sigma*np.sqrt(len(y)) - r)
+            if(gap_noise_estim > lbda_update_eps):
+                lbda *= sigma*np.sqrt(len(y)) / r
+        lbdas[j] = lbda
+
+        # update iterates
+        t_old = t
+        z_old = z
+
+        # plotting
+        if plotting and (j % int(nb_iter / 100) == 0):
+
+            plt.gcf().clear()
+            ax1 = fig.add_subplot(4, 1, 1)
+            ax1.plot(ar_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax1.set_title("Estimated activity relating signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax2 = fig.add_subplot(4, 1, 2)
+            ax2.plot(i_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax2.set_title("Estimated innovation signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax3 = fig.add_subplot(4, 1, 3)
+            ax3.plot(ai_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax3.set_title("Estimated activation inducing signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax4 = fig.add_subplot(4, 1, 4)
+            ax4.plot(v, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax4.set_title("(Delta_L^T)^-1((x-y)/lambda) "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            plt.tight_layout()
+            plt.pause(0.1)
+
+        # early stopping
+        if early_stopping:
+            if j > wind:
+                sub_wind_len = int(wind/2)
+                i_s_old = I_S[j-2*sub_wind_len:j-sub_wind_len, :].mean(axis=0)
+                i_s_new = I_S[j-sub_wind_len:j, :].mean(axis=0)
+                norm_1_num = np.sum(np.abs(i_s_new - i_s_old))
+                norm_1_deno = np.sum(np.abs(i_s_old))
+                i_s_diff = norm_1_num / norm_1_deno
+                if i_s_diff < eps:
+                    if verbose:
+                        print("\n-----> early-stopping "
+                              "done at {0}/{1}".format(j, nb_iter))
+                    break
+
+    if plotting:
+        plt.ioff()
+
+    # compute distance to minimum
+    norm_2_i_s_final = np.linalg.norm(I_S[j, :])
+    D = [np.linalg.norm(I_S[i, :] - I_S[j, :]) / norm_2_i_s_final
+         for i in range(j)]
+    D = np.array(D)
+
+    return ar_s, ai_s, i_s, v, J[:j], R[:j], D, lbdas[:j]
+
+
+def fgp(y, L, lbda=None, mu=1.0e-3, v0=None, nb_iter=9999, #noqa
+        early_stopping=True, wind=8, tol=1.0e-8,
+        plotting=False, verbose=0):
+    """ Nesterov forward backward algorithm.
+    Minimize on x:
+        grad.cost(x) - prox.w * prox.f(L.op(x))
+    e.g
+        0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
+
+    Parameters
+    ----------
+    grad : object with op and adj method,
+        Gradient operator.
+
+    v0 : np.ndarray (default=None),
+        Initial guess for the iterate.
+
+    nb_iter : int (default=999),
+        Number of iterations.
+
+    early_stopping : bool (default=True),
+        Whether or not to activate early stopping.
+
+    wind : int (default=4),
+        Windows on which average the early-stopping criterion.
+
+    tol : float (default=1.0e-6),
+        Tolerance on the the early-stopping criterion.
+
+    verbose : int (default=0),
+        Verbose level.
+
+    Results
+    -------
+    X_new : np.ndarray,
+        Minimizer.
+
+    J : np.ndarray,
+        Cost function values.
+    """
+    if wind < 2:
+        raise ValueError("wind should at least 2, got {0}".format(wind))
+
+    adaptative_lbda = lbda is None
+
+    if adaptative_lbda:
+        N = len(y)
+        sigma = mad_daub_noise_est(y)
+        lbda_update_eps = sigma*np.sqrt(N) * 1.0e-12
+        lbda = sigma
+
+    v = v0
+    z_old = np.zeros_like(v0)
+    J, xx = [], []
+    t = t_old = 1
+
+    L_y = L.op(y)
+
+    integ = DiscretInteg()
+
+    if plotting:
+        fig = plt.figure(99, figsize=(15, 15))
+        plt.ion()
+
+    # main loop
+    if verbose > 2:
+        print("running main loop...")
+
+    for j in range(nb_iter):
+
+        # main update
+        z = (mu/lbda) * L_y + v - mu * L.op(L.adj(v))
+        z = np.clip(z, -1.0, 1.0)
+
+        # fista acceleration
+        t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
+        v = z + (t_old-1)/t * (z - z_old)
+
+        # update iterates
+        t_old = t
+        z_old = z
+
+        # iterate update and saving
+        x = y - lbda * L.adj(v)
+        ar_s = x
+        i_s = L.adj(ar_s)
+        ai_s = integ.op(i_s)
+
+        r = np.linalg.norm(x-y)
+        g = np.sum(np.abs(L.op(x)))
+        J.append(0.5*r**2 + lbda * g)
+
+        if plotting and (j % int(nb_iter / 100) == 0):
+
+            plt.gcf().clear()
+            ax1 = fig.add_subplot(4, 1, 1)
+            ax1.plot(ar_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax1.set_title("Estimated activity relating signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax2 = fig.add_subplot(4, 1, 2)
+            ax2.plot(i_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax2.set_title("Estimated innovation signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax3 = fig.add_subplot(4, 1, 3)
+            ax3.plot(ai_s, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax3.set_title("Estimated activation inducing signal "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            ax4 = fig.add_subplot(4, 1, 4)
+            ax4.plot(v, '-b')
+            plt.xlabel("n scans")
+            plt.ylabel("amplitude")
+            ax4.set_title("(Delta_L^T)^-1((x-y)/lambda) "
+                          "(iter:{0}/{1})".format(j+1, nb_iter))
+
+            plt.tight_layout()
+            plt.pause(0.1)
+
+        xx.append(v)
+        if len(xx) > wind:  # only hold the 'wind' last iterates
+            xx = xx[1:]
+
+        if adaptative_lbda:
+            gap_noise_estim = np.abs(sigma * np.sqrt(N) - r)
+            if(gap_noise_estim > lbda_update_eps):
+                lbda *= sigma * np.sqrt(N) / r
+
+        if verbose > 2:
+            print("iteration {0}/{1}, "
+                  "cost function = {2:0.6f}".format(j+1, nb_iter, J[j]))
+
+        # early stopping
+        if early_stopping:
+            if j > wind:
+                sub_wind_len = int(wind/2)
+                old_iter = np.mean(xx[:-sub_wind_len], axis=0)
+                new_iter = np.mean(xx[-sub_wind_len:], axis=0)
+                crit_num = np.linalg.norm(new_iter - old_iter)
+                crit_deno = np.linalg.norm(new_iter)
+                diff = crit_num / crit_deno
+                if diff < tol:
+                    if verbose > 1:
+                        print("\n-----> early-stopping "
+                              "done at {0}/{1}, "
+                              "cost function = {2}".format(j, nb_iter, J[j]))
+                    break
+
+    if plotting:
+        plt.ioff()
+
+    return ar_s, ai_s, i_s, lbda, np.array(J)
 
 
 def fista(grad, prox, v0=None, nb_iter=9999, early_stopping=True, #noqa
@@ -399,9 +764,6 @@ def fista(grad, prox, v0=None, nb_iter=9999, early_stopping=True, #noqa
     # gather iterates and cost function values
     xx = []
 
-    # inline function
-    grad_ = lambda x: grad.L.adj(grad.L.op(x)) - grad.L_adj_y
-
     # main loop
     if verbose > 2:
         print("running main loop...")
@@ -409,7 +771,7 @@ def fista(grad, prox, v0=None, nb_iter=9999, early_stopping=True, #noqa
     for j in range(nb_iter):
 
         # main update
-        v = v - step * grad_(v)
+        v = v - step * (grad.L.adj(grad.L.op(v)) - grad.L_adj_y)
         z = np.sign(v) * np.maximum(np.abs(v) - th, 0)
 
         # fista acceleration

@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.linalg import norm as norm_2
 from pybold.convolution import simple_convolve
-from pybold.data import gen_bloc_bold
+from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
 
 
@@ -78,7 +78,7 @@ class TestDataGeneration(unittest.TestCase):
                       'snr': snr,
                       'random_state': random_state,
                       }
-            res = gen_bloc_bold(**params)
+            res = gen_rnd_bloc_bold(**params)
             yield res, snr, nb_events
 
     def test_data_gen(self):

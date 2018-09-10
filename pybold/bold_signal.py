@@ -4,13 +4,15 @@
 import numpy as np
 from scipy.optimize import fmin_bfgs, minimize
 from .hrf_model import spm_hrf, il_hrf
-from .linear import Matrix, DiscretInteg, Conv, ConvAndLinear
+from .linear import (Matrix, Diff, DiscretInteg, Conv,
+                     LinearAndDeconv, ConvAndLinear)
 from .gradient import L2ResidualLinear
 from .solvers import (nesterov_forward_backward, fista,
-                      admm_sparse_positif_ratio_hrf_encoding)
+                      admm_sparse_positif_ratio_hrf_encoding, fgp)
 from .proximity import L1Norm
 from .convolution import toeplitz_from_kernel
-from .utils import fwhm, Tracker, grid_search
+from .utils import (fwhm, Tracker, grid_search, spectral_radius_est,
+                    mad_daub_noise_est)
 
 
 # Sparse model amplitude correction
@@ -119,7 +121,54 @@ def i_s_ampl_corr(est_i_s, noisy_ar_s, hrf, th=1.0e-2):
 # Deconvolution
 
 
-def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
+def bold_bloc_deconvolution_analysis(noisy_ar_s, tr, hrf,
+                                     lbda=None, verbose=0):
+    """ Deconvolve the given BOLD signal given an HRF convolution kernel.
+    The source signal is supposed to be a bloc signal. Note: used the synthesis
+    formulation.
+
+    Parameters:
+    ----------
+    noisy_ar_s : 1d np.ndarray,
+        the observed bold signal.
+
+    tr : float,
+        the TR.
+
+    hrf : 1d np.ndarray,
+        the HRF.
+
+    verbose : int (default=0),
+        the verbosity level.
+
+    Return:
+    ------
+    est_ar_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_ai_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    est_i_s : 1d np.ndarray,
+        the estimated convolved signal.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
+    """
+    N = len(noisy_ar_s)
+    H = LinearAndDeconv(Diff(), hrf, dim_in=N, dim_out=N)
+    v0 = np.zeros(N)
+
+    L = spectral_radius_est(H, v0.shape)  # approx of the Lipschitz cst
+
+    ar_s, ai_s, i_s, _, J = fgp(noisy_ar_s, H, lbda=lbda, mu=1.0/L, v0=v0,
+                                nb_iter=99999, verbose=False, plotting=True)
+
+    return ar_s, ai_s, i_s, J
+
+
+def bold_bloc_deconvolution_synthesis(noisy_ar_s, tr, hrf,
+                                      lbda=1.0, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
 
@@ -154,28 +203,75 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
+    R, G = [], []
+    N = len(noisy_ar_s)
     Integ = DiscretInteg()
-    H = ConvAndLinear(Integ, hrf, dim_in=len(noisy_ar_s),
-                      dim_out=len(noisy_ar_s))
+    H = ConvAndLinear(Integ, hrf, dim_in=N, dim_out=N)
+    v0 = np.zeros(N)
+    grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
 
-    z0 = np.zeros(len(noisy_ar_s))
+    if lbda is not None:
+        # solve 0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
+        prox = L1Norm(lbda)
+        x, J = nesterov_forward_backward(
+                        grad=grad, prox=prox, v0=v0, nb_iter=9999,
+                        early_stopping=True, verbose=verbose, plotting=False,
+                          )
 
-    prox = L1Norm(lbda)
-    grad = L2ResidualLinear(H, noisy_ar_s, z0.shape)
+        est_i_s = x
+        est_ai_s = Integ.op(x)
+        est_ar_s = Conv(hrf, N).op(est_ai_s)
 
-    x, J = nesterov_forward_backward(
-                    grad=grad, prox=prox, v0=z0, nb_iter=10000,
-                    early_stopping=True, verbose=verbose,
-                      )
-    est_i_s = x
+        return est_ar_s, est_ai_s, est_i_s, J, None
 
-    est_ai_s = Integ.op(x)
-    est_ar_s = Conv(hrf, len(noisy_ar_s)).op(est_ai_s)
+    else:
+        # solve || x ||_1 sc  || L h conv alpha - y ||_2^2 < sigma
+        sigma = mad_daub_noise_est(noisy_ar_s)  # estim. of the noise std
+        nb_iter = 50  # nb iters for main loop
+        alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
+        mu = 1.0e-2  # gradient step of the lbda optimization
+        for idx in range(nb_iter):
+            # deconvolution step
+            lbda = 1.0 / (2.0 * alpha)
+            prox = L1Norm(lbda)
+            x, _ = nesterov_forward_backward(
+                            grad=grad, prox=prox, v0=v0, nb_iter=999,
+                            early_stopping=True, verbose=verbose,
+                            plotting=False,
+                              )
+            # lambda optimization
+            alpha += mu * (grad.residual(x) - N * sigma**2)
 
-    return est_ar_s, est_ai_s, est_i_s, J
+            # inspect convergence
+            r = grad.residual(x)
+            g = np.sum(np.abs(x))
+            R.append(r)
+            G.append(g)
+            print("Main loop: iteration {0:03d},"
+                  " lbda = {1:0.4f},"
+                  " l1-norm = {2:0.4f},"
+                  " N*sigma**2 = {3:0.4f},"
+                  " ||r-sigma||_2^2 = {4:0.4f}".format(idx+1, lbda, g,
+                                                       N*sigma**2, r))
+
+        # last deconvolution with larger number of iterations
+        lbda = 1.0 / (2.0 * alpha)
+        prox = L1Norm(lbda)
+        x, _ = nesterov_forward_backward(
+                        grad=grad, prox=prox, v0=v0, nb_iter=9999,
+                        early_stopping=True, verbose=verbose,
+                        plotting=False,
+                          )
+
+        est_i_s = x
+        est_ai_s = Integ.op(x)
+        est_ar_s = Conv(hrf, N).op(est_ai_s)
+
+        return est_ar_s, est_ai_s, est_i_s, R, G
 
 
-def bold_event_deconvolution(noisy_ar_s, tr, hrf, lbda=1.0, verbose=0):
+def bold_event_deconvolution_synthesis(noisy_ar_s, tr, hrf,
+                                       lbda=1.0, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a Dirac signal.
 
@@ -750,6 +846,103 @@ def scaled_hrf_blind_blocs_deconvolution(
                         print("\n-----> early-stopping done at {0}/{1}, global"
                               " cost-function = {2:.6f}".format(idx, nb_iter,
                                                                 J[idx]))
+                    break
+    J = np.array(J)
+
+    return est_ar_s, est_ai_s, est_i_s, est_hrf, J
+
+
+def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
+                        noisy_ar_s, tr, init_delta=None, init_i_s=None,
+                        dur_hrf=60.0, nb_iter=50, early_stopping=False,
+                        wind=24, tol=1.0e-24, verbose=0):
+    """ BOLD blind deconvolution function based on a scaled HRF model and an
+    blocs BOLD model.
+    """
+    # initialization of the HRF
+    est_delta = init_delta if init_delta is not None else 1.0
+    est_hrf, _ = spm_hrf(tr=tr, delta=est_delta)
+
+    N = len(noisy_ar_s)
+    # definition of the usefull operator
+    Integ = DiscretInteg()
+
+    sigma = mad_daub_noise_est(noisy_ar_s)  # estim. of the noise std
+    nb_iter_deconv = 50  # nb iters for main loop
+    alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
+    lbda = 1.0 / (2.0 * alpha)
+    mu = 1.0e-2  # gradient step of the lbda optimization
+
+    # initialization of the source signal
+    if init_i_s is None:
+        est_i_s = np.zeros(N)  # init spiky signal
+        est_ai_s = np.zeros(N)  # init spiky signal
+        est_ar_s = np.zeros(N)  # thus.. init convolved signal
+    else:
+        est_i_s = init_i_s
+        est_ai_s = Integ.op(est_i_s)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+    # init cost function value
+    J = []
+    r = np.sum(np.square(est_ar_s - noisy_ar_s))
+    J.append(0.5 * r + lbda * np.sum(np.abs(est_i_s)))
+
+    for i in range(nb_iter):
+
+        # BOLD DECONVOLUTION ###
+        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+        v0 = np.zeros(N)
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+
+        for j in range(nb_iter_deconv):
+            # deconvolution step
+            lbda = 1.0 / (2.0 * alpha)
+            prox = L1Norm(lbda)
+            x, _ = nesterov_forward_backward(
+                            grad=grad, prox=prox, v0=v0, nb_iter=999,
+                            early_stopping=True, verbose=verbose,
+                            plotting=False,
+                              )
+            # lambda optimization
+            alpha += mu * (grad.residual(x) - N * sigma**2)
+
+        # last deconvolution with larger number of iterations
+        prox = L1Norm(1.0 / (2.0 * alpha))
+        x, _ = nesterov_forward_backward(
+                        grad=grad, prox=prox, v0=v0, nb_iter=9999,
+                        early_stopping=True, verbose=verbose,
+                        plotting=False,
+                          )
+        est_ai_s = Integ.op(x)
+
+        # HRF ESTIMATION ###
+        cst_args = (est_ai_s, noisy_ar_s, tr, dur_hrf)
+        res = minimize(fun=scale_factor_fit_err, x0=est_delta,
+                       args=cst_args, bounds=[(0.2 + 1.0e-1, 2.0 - 1.0e-1)])
+        est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
+        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        # cost function
+        r = np.sum(np.square(est_ar_s - noisy_ar_s))
+        J.append(0.5 * r + lbda * np.sum(np.abs(est_i_s)))
+
+        if (verbose > 0):
+            print("global cost-function "
+                  "({0}/{1}): {2:.6f}".format(i+1, nb_iter, J[-1]))
+
+        # early stopping
+        if early_stopping:
+            if i > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(J[:-sub_wind_len])
+                new_j = np.mean(J[-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at {0}/{1},"
+                              " global cost-function"
+                              " = {2:.6f}".format(i, nb_iter, J[i]))
                     break
     J = np.array(J)
 

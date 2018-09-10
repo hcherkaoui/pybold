@@ -32,6 +32,11 @@ class L2ResidualLinear:
         else:
             self.step = step
 
+    def residual(self, x):
+        """ Return || h.convolve(x) - y ||_2.
+        """
+        return np.sum(np.square(self.L.op(x) - self.y))
+
     def cost(self, x):
         """ Return 1/2 || h.convolve(x) - y ||_2^2.
         """

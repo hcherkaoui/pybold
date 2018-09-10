@@ -54,6 +54,54 @@ def spectral_retro_convolve(k, x):
     return k_conv_x
 
 
+def spectral_deconvolve(k, x):
+    """ Return k.conv(x).
+
+    Parameters:
+    -----------
+    k : 1d np.ndarray,
+        kernel.
+    x : 1d np.ndarray,
+        signal.
+
+    Results:
+    --------
+    k_conv_x : 1d np.ndarray,
+        the convolved signal.
+    """
+    x, p = custom_padd(x)
+    N = len(x)
+    fft_k = 1.0 / rfft(k, n=N, norm=None)
+    padded_h_conv_x = irfft(fft_k * rfft(x,  n=N, norm=None), norm=None)
+    k_conv_x = unpadd(padded_h_conv_x, p)
+
+    return k_conv_x
+
+
+def spectral_retro_deconvolve(k, x):
+    """ Return k.conv(x).
+
+    Parameters:
+    -----------
+    k : 1d np.ndarray,
+        kernel.
+    x : 1d np.ndarray,
+        signal.
+
+    Results:
+    --------
+    k_conv_x : 1d np.ndarray,
+        the convolved signal.
+    """
+    x, p = custom_padd(x)
+    N = len(x)
+    fft_k = (1.0 / rfft(k, n=N, norm=None)).conj()
+    padded_h_conv_x = irfft(fft_k * rfft(x,  n=N, norm=None), norm=None)
+    k_conv_x = unpadd(padded_h_conv_x, p)
+
+    return k_conv_x
+
+
 def toeplitz_from_kernel(k, dim_in, dim_out=None):
     """ Return the Toeplitz matrix that correspond to k.conv(.).
 
