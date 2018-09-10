@@ -25,24 +25,33 @@ from distutils.version import LooseVersion
 
 __version__ = '0.0.0'
 
-_PYTA_INSTALL_MSG = "See {0} for installation information.".format(
+_PYBOLD_INSTALL_MSG = "See {0} for installation information.".format(
                     'https://github.com/CherkaouiHamza/pybold')
 
 # This is a tuple to preserve order, so that dependencies are checked
 #   in some meaningful order (more => less 'core').
 REQUIRED_MODULE_METADATA = (
-    ('numpy', {
-        'min_version': '1.14.0',
+    ('psutil', {
+        'min_version': '3.4.2',
         'required_at_installation': True,
-        'install_info': _PYTA_INSTALL_MSG}),
-    ('scipy', {
-        'min_version': '1.0.0',
-        'required_at_installation': True,
-        'install_info': _PYTA_INSTALL_MSG}),
+        'install_info': _PYBOLD_INSTALL_MSG}),
     ('joblib', {
         'min_version': '0.11',
         'required_at_installation': True,
-        'install_info': _PYTA_INSTALL_MSG}),
+        'install_info': _PYBOLD_INSTALL_MSG}),
+    ('numpy', {
+        'min_version': '1.14.0',
+        'required_at_installation': True,
+        'install_info': _PYBOLD_INSTALL_MSG}),
+    ('scipy', {
+        'min_version': '1.0.0',
+        'required_at_installation': True,
+        'install_info': _PYBOLD_INSTALL_MSG}),
+    ('pyWavelets', {
+        'import_name': 'pywt',
+        'min_version': '0.5.2',
+        'required_at_installation': True,
+        'install_info': _PYBOLD_INSTALL_MSG}),
     )
 
 

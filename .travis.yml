@@ -2,15 +2,23 @@ language: python
 
 python:
   - "2.7"
+  - "3.5"
 
 install:
   # for testing
   - pip install coverage
   - pip install nose
   # pybold dependencies
-  - pip install 'numpy>=1.14.0' 'scipy>=1.0.0' 'joblib>=0.11'
+  - pip install  'psutil>=3.4.2' 'joblib>=0.11' 'numpy>=1.14.0' 'scipy>=1.0.0' 'pyWavelets>=0.5.2' 'matplotlib>=2.1.2'
 
 script:
   # run tests
   - python setup.py install
   - nosetests --with-coverage
+  # run examples
+  - cd examples/
+  - python data_generation_bloc.py
+  - python hrf_scale_factor_estimation_bloc.py
+  - python deconvolution_bloc.py
+  - python blind_deconvolution_scaled_hrf_bloc.py
+  - python blind_deconvolution_auto_lbda_scaled_hrf_bloc.py

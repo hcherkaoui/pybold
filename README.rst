@@ -2,12 +2,12 @@
 
 |Travis|_
 
-.. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=master
+.. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=hcherkaoui/dev
 .. _Travis: https://travis-ci.com/CherkaouiHamza/pybold
 
 
-pyBOLD
-======
+pyBOLD - dev
+============
 
 pyBOLD is a package module for fast and easy BOLD signal processing analysis.
 
@@ -23,8 +23,11 @@ Dependencies
 
 The required dependencies to use the software are:
 
+* Psutil
 * Joblib
 * Numpy
+* Scipy
+* PyWavelets
 * Matplotlib (for examples)
 
 

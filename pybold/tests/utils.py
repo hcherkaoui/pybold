@@ -3,8 +3,8 @@
 """
 import itertools
 import numpy as np
-from ..data import gen_ai_s
-from ..hrf_model import spm_hrf, gen_hrf_spm_dict
+from ..data import gen_rnd_ai_s
+from ..hrf_model import spm_hrf
 
 
 class YieldData():
@@ -27,10 +27,9 @@ class YieldData():
                           }
             hrf, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
-            yield i_s, hrf, D_hrf, alpha, tr
+            yield i_s, hrf, alpha, tr
 
     def yield_blocks_signal(self):
         """ Yield blocks signals on which to test the convolution functions.
@@ -56,10 +55,9 @@ class YieldData():
             hrf_params = {'tr': tr,
                           'delta': delta,
                           }
-            ai_s, _, _ = gen_ai_s(**ai_s_params)
+            ai_s, _, _ = gen_rnd_ai_s(**ai_s_params)
             hrf, _ = spm_hrf(**hrf_params)
             nb_atoms = 20
-            D_hrf = gen_hrf_spm_dict(tr=1.0, nb_time_deltas=nb_atoms)
             alpha = np.zeros(nb_atoms)
             alpha[10] = 1
-            yield ai_s, hrf, D_hrf, alpha, tr
+            yield ai_s, hrf, alpha, tr

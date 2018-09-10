@@ -137,20 +137,16 @@ def padd(arrays, p, c=0.0, paddtype="center"):
     arrays : np.ndarray or list of np.ndarray
         the unpadded array or list of arrays.
     """
-    # special case: no padd
-    if p < 1:
-        return arrays
-
-    # all other case
-    else:
-
-        # case of assymetric padding
-        if isinstance(p, int):
+    # case of assymetric padding
+    if isinstance(p, int):
+        if p < 1:  # no padding array
+            return arrays
+        else:
             return _padd_symetric(arrays, p=p, c=c, paddtype=paddtype)
 
-        # case of symetric padding
-        else:
-            return _padd_assymetric(arrays, p=p, c=c, paddtype=paddtype)
+    # case of symetric padding
+    else:
+        return _padd_assymetric(arrays, p=p, c=c, paddtype=paddtype)
 
 
 def _unpadd_symetric(arrays, p, paddtype):
@@ -272,20 +268,16 @@ def unpadd(arrays, p, paddtype="center"):
     arrays : np.ndarray or list of np.ndarray
         the unpadded array or list of arrays.
     """
-    # special case: no padd
-    if p < 1:
-        return arrays
-
-    # all other case
-    else:
-
-        # case of assymetric padding
-        if isinstance(p, int):
+    # case of assymetric padding
+    if isinstance(p, int):
+        if p < 1:  # no padding case
+            return arrays
+        else:
             return _unpadd_symetric(arrays, p, paddtype)
 
-        # case of symetric padding
-        else:
-            return _unpadd_assymetric(arrays, p, paddtype)
+    # case of symetric padding
+    else:
+        return _unpadd_assymetric(arrays, p, paddtype)
 
 
 def _custom_padd(a, min_power_of_2=1024, min_zero_padd=50,

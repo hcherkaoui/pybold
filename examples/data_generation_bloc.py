@@ -1,8 +1,11 @@
 # coding: utf-8
 """ Data generation example.
 """
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
-from pybold.data import gen_rnd_event_bold
+from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm
 
@@ -12,21 +15,22 @@ from pybold.utils import fwhm
 tr = 1.0
 snr = 1.0
 dur_orig = 4  # minutes
-delta = 0.5
-hrf, t_hrf = spm_hrf(tr=tr, delta=delta)
+hrf_delta = 1.0
+hrf, t_hrf = spm_hrf(tr=tr, delta=hrf_delta)
 hrf_fwhm = fwhm(t_hrf, hrf)
 params = {'dur': dur_orig,
           'tr': tr,
           'hrf': hrf,
           'nb_events': 4,
-          'avg_ampl': 1.0,
-          'std_ampl': 0.5,
+          'avg_dur': 1,
+          'std_dur': 4,
+          'overlapping': False,
           'snr': snr,
           'random_state': 0,
           }
 
-res = gen_rnd_event_bold(**params)
-noisy_ar_s, ar_s, i_s, t, _, noise = res
+res = gen_rnd_bloc_bold(**params)
+noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = res
 
 ###############################################################################
 # plotting
@@ -48,10 +52,12 @@ ax1.set_title("Convolved signals, TR={0}s".format(tr), fontsize=20)
 # axis 2
 ax2 = fig.add_subplot(3, 1, 2)
 
+ax2.plot(t, ai_s, '-r', label="Block signal", linewidth=2.0)
 ax2.stem(t, i_s, '-g', label="Dirac source signal")
 
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
+ax2.set_ylim(-1.5, 1.5)
 ax2.legend()
 ax2.set_title("Source signals, TR={0}s".format(tr), fontsize=20)
 
@@ -68,6 +74,6 @@ ax3.set_title(title, fontsize=20)
 
 plt.tight_layout()
 
-filename = "generation_events_data_tr_{0}.png".format(tr)
+filename = "generation_data_bloc_tr_{0}.png".format(tr)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

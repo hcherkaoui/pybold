@@ -10,26 +10,6 @@ from scipy.interpolate import splrep, sproot
 import pywt
 
 
-def _default_wrapper(recons_func, **kwargs):
-    """ Default wrapper to parallelize the image reconstruction.
-
-    Parameters:
-    -----------
-    recons_func : func,
-        the function to run.
-
-    kwargs : dict,
-        the keywords args of 'func'.
-
-    Return:
-    -------
-    res : list,
-        the return of 'func'.
-
-    """
-    return recons_func(**kwargs)
-
-
 def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
     """ Run `func` on the carthesian product of `param_grid`.
 
@@ -58,6 +38,8 @@ def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
         the list of result for each reconstruction.
     """
     if wrapper is None:
+        def _default_wrapper(recons_func, **kwargs):
+            return recons_func(**kwargs)
         wrapper = _default_wrapper
     # sanitize value to list type
     for key, value in param_grid.iteritems():
