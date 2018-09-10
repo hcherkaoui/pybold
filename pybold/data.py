@@ -2,14 +2,42 @@
 """ This module gathers usefull data generation.
 """
 import numpy as np
-from scipy.stats import gamma
 from .utils import random_generator
 from .convolution import simple_convolve
+from .hrf_model import spm_hrf
 
 
-def gen_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
-            random_state=None, nb_try=1000, nb_try_duration=1000):
+def gen_regular_ai_s(dur=10, tr=1.0, dur_bloc=30.0):
     """ Generate a Activity inducing signal.
+    """
+    N = int(dur * 60 / tr)
+    i_s = np.zeros(N)
+    i_s[::int(dur_bloc/tr)] = -1
+    i_s[::int(dur_bloc/tr)][::2] *= -1
+    ai_s = np.cumsum(i_s)
+    t = np.linspace(0, dur*60, len(i_s))
+
+    return ai_s, i_s, t
+
+
+def gen_regular_bloc_bold(dur=10, tr=1.0, dur_bloc=30.0, hrf=None, snr=1.0,
+                          random_state=None):
+    """ Generate a Activity inducing signal.
+    """
+    ai_s, i_s, t = gen_regular_ai_s(dur=dur, tr=tr, dur_bloc=dur_bloc)
+
+    hrf = spm_hrf(tr=tr, delta=1.0)[0] if hrf is None else hrf
+    ar_s = simple_convolve(hrf, ai_s)
+
+    noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
+                                           random_state=random_state)
+
+    return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, noise
+
+
+def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
+                random_state=None, nb_try=1000, nb_try_duration=1000):
+    """ Generate a innovation signal.
     dur : int (default=5),
         The length of the BOLD signal (in minutes).
 
@@ -86,9 +114,9 @@ def gen_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
                        "function with possibly new arguments.")
 
 
-def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
-             middle_spike=False, overlapping=False, unitary_block=False,
-             random_state=None, nb_try=1000, nb_try_duration=1000):
+def gen_rnd_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
+                 middle_spike=False, overlapping=False, unitary_block=False,
+                 random_state=None, nb_try=1000, nb_try_duration=1000):
     """ Generate a Activity inducing signal.
     dur : int (default=5),
         The length of the BOLD signal (in minutes).
@@ -199,10 +227,10 @@ def gen_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
                        "function with possibly new arguments.")
 
 
-def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
-                  middle_spike=False, overlapping=False, unitary_block=False,
-                  snr=1.0, nb_try=1000, nb_try_duration=1000,
-                  random_state=None):
+def gen_rnd_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5,
+                      std_dur=1, middle_spike=False, overlapping=False,
+                      unitary_block=False, snr=1.0, nb_try=1000,
+                      nb_try_duration=1000, random_state=None):
     """ Generate synthetic BOLD signal.
 
     Parameters
@@ -272,12 +300,14 @@ def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
         Noise.
 
     """
-    ai_s, i_s, t = gen_ai_s(dur=dur, tr=tr, nb_events=nb_events,
-                            avg_dur=avg_dur, std_dur=std_dur,
-                            middle_spike=middle_spike, overlapping=overlapping,
-                            unitary_block=unitary_block,
-                            random_state=random_state)
+    ai_s, i_s, t = gen_rnd_ai_s(dur=dur, tr=tr, nb_events=nb_events,
+                                avg_dur=avg_dur, std_dur=std_dur,
+                                middle_spike=middle_spike,
+                                overlapping=overlapping,
+                                unitary_block=unitary_block,
+                                random_state=random_state)
 
+    hrf = spm_hrf(tr=tr, delta=1.0)[0] if hrf is None else hrf
     ar_s = simple_convolve(hrf, ai_s)
 
     noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
@@ -286,8 +316,8 @@ def gen_bloc_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_dur=5, std_dur=1,
     return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, noise
 
 
-def gen_event_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
-                   std_ampl=1, snr=1.0, random_state=None):
+def gen_rnd_event_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
+                       std_ampl=1, snr=1.0, random_state=None):
     """ Generate synthetic BOLD signal.
 
     Parameters
@@ -344,10 +374,11 @@ def gen_event_bold(dur=5, tr=1.0, hrf=None, nb_events=4, avg_ampl=5,
         Noise.
 
     """
-    i_s, t = gen_i_s(dur=dur, tr=tr, nb_events=nb_events,
-                     avg_ampl=avg_ampl, std_ampl=std_ampl,
-                     random_state=random_state)
+    i_s, t = gen_rnd_i_s(dur=dur, tr=tr, nb_events=nb_events,
+                         avg_ampl=avg_ampl, std_ampl=std_ampl,
+                         random_state=random_state)
 
+    hrf = spm_hrf(tr=tr, delta=1.0)[0] if hrf is None else hrf
     ar_s = simple_convolve(hrf, i_s)
 
     noisy_ar_s, noise = add_gaussian_noise(ar_s, snr=snr,
