@@ -8,9 +8,10 @@ from scipy.stats import gamma
 def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True):
     """ Custom HRF.
     """
-    if (delta < 0.2) or (delta > 2.0):
-        raise ValueError("delta should belong in [0.2, 2.0]"
-                         ", got {0}".format(delta))
+    if (delta < 0.3) or (delta > 5.0):
+        raise ValueError("delta should belong in [0.3, 5.0]; wich correspond"
+                         " to a max FWHM of 17.54s and a min FWHM of 1.43s"
+                         ", got delta = {0}".format(delta))
 
     # fixed: from the literature
     dt = 0.001
