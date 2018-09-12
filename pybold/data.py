@@ -7,7 +7,7 @@ from .convolution import simple_convolve
 from .hrf_model import spm_hrf
 
 
-def gen_regular_ai_s(dur=10, tr=1.0, dur_bloc=30.0):
+def gen_regular_ai_s(dur=10, tr=1.0, dur_bloc=30.0, centered=True):
     """ Generate a Activity inducing signal.
     """
     N = int(dur * 60 / tr)
@@ -16,6 +16,10 @@ def gen_regular_ai_s(dur=10, tr=1.0, dur_bloc=30.0):
     i_s[::int(dur_bloc/tr)][::2] *= -1
     ai_s = np.cumsum(i_s)
     t = np.linspace(0, dur*60, len(i_s))
+
+    if centered:
+        ai_s -= ai_s.mean()
+        i_s -= i_s.mean()
 
     return ai_s, i_s, t
 
@@ -36,7 +40,8 @@ def gen_regular_bloc_bold(dur=10, tr=1.0, dur_bloc=30.0, hrf=None, snr=1.0,
 
 
 def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
-                random_state=None, nb_try=1000, nb_try_duration=1000):
+                random_state=None, nb_try=1000, nb_try_duration=1000,
+                centered=False):
     """ Generate a innovation signal.
     dur : int (default=5),
         The length of the BOLD signal (in minutes).
@@ -107,6 +112,9 @@ def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
         if (current_nb_events != nb_events):
             continue  # decimation step erase an event
 
+        if centered:
+            i_s -= i_s.mean()
+
         return i_s, t
 
     raise RuntimeError("[Failure] Failed to produce an "
@@ -116,7 +124,8 @@ def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
 
 def gen_rnd_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
                  middle_spike=False, overlapping=False, unitary_block=False,
-                 random_state=None, nb_try=1000, nb_try_duration=1000):
+                 random_state=None, nb_try=1000, nb_try_duration=1000,
+                 centered=False):
     """ Generate a Activity inducing signal.
     dur : int (default=5),
         The length of the BOLD signal (in minutes).
@@ -219,6 +228,10 @@ def gen_rnd_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
         current_nb_events = (i_s > 0.5).sum()
         if not overlapping and (current_nb_events != nb_events):
             continue  # decimation step erase an event
+
+        if centered:
+            ai_s -= ai_s.mean()
+            i_s -= i_s.mean()
 
         return ai_s, i_s, t
 
