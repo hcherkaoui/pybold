@@ -37,12 +37,12 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
-hrf_dur = 30.
+hrf_dur = 60.
 dur = 10  # minutes
 tr = 1.0
 snr = 1.0
 
-true_hrf_delta = 1.5
+true_hrf_delta = 1.0
 orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
 params = {'tr': tr,
           'dur': dur,
@@ -51,16 +51,20 @@ params = {'tr': tr,
           'random_state': 0,
           }
 noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
+larger_hrf, _ = spm_hrf(tr=tr, delta=0.3, dur=hrf_dur)
+tighter_hrf, _ = spm_hrf(tr=tr, delta=5.0, dur=hrf_dur)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_delta = 1.0
+init_hrf_delta = 4.0
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
+larger_hrf, _ = spm_hrf(tr=tr, delta=0.3, dur=hrf_dur)
+tighter_hrf, _ = spm_hrf(tr=tr, delta=5.0, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 25,
+          'nb_iter': 20,
           'verbose': 1,
           }
 
@@ -77,7 +81,8 @@ print("Duration: {0:.2f} s".format(delta_t))
 if True:
     est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
                                                      est_i_s, est_hrf])
-    ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
+    ar_s, ai_s, orig_hrf, init_hrf, larger_hrf, tighter_hrf = \
+            inf_norm([ar_s, ai_s, orig_hrf, init_hrf, larger_hrf, tighter_hrf])
 
 ###############################################################################
 # plotting
@@ -132,15 +137,20 @@ print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
 # plot 2
+
 fig = plt.figure(2, figsize=(15, 10))
 t_hrf = np.linspace(0, len(orig_hrf) * tr, len(orig_hrf))
 
 label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
-plt.plot(t_hrf, orig_hrf, '-b', label=label)
+plt.plot(t_hrf, orig_hrf, '-*b', label=label)
 label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
 plt.plot(t_hrf, est_hrf, '-*g', label=label)
 label = "Init. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, init_hrf))
-plt.plot(t_hrf, init_hrf, '--r', label=label)
+plt.plot(t_hrf, init_hrf, '-*y', label=label)
+label = "Larger HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, larger_hrf))
+plt.plot(t_hrf, larger_hrf, '--k', label=label)
+label = "Tighter HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, tighter_hrf))
+plt.plot(t_hrf, tighter_hrf, '--k', label=label)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
