@@ -77,9 +77,9 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
     else:
         # solve || x ||_1 sc  || L h conv alpha - y ||_2^2 < sigma
         sigma = mad_daub_noise_est(noisy_ar_s)  # estim. of the noise std
-        nb_iter = 50  # nb iters for main loop
+        nb_iter = 500  # nb iters for main loop
         alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
-        mu = 1.0e-2  # gradient step of the lbda optimization
+        mu = 5.0e-3  # gradient step of the lbda optimization
         for i in range(nb_iter):
             # deconvolution step
             lbda = 1.0 / (2.0 * alpha)
