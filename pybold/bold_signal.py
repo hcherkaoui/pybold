@@ -5,15 +5,15 @@ import numpy as np
 from scipy.optimize import minimize
 from .hrf_model import spm_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear
-from .gradient import L2ResidualLinear
+from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
 from .proximity import L1Norm
 from .utils import Tracker, mad_daub_noise_est
 
 
 def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
-                            early_stopping=True, tol=1.0e-3, wind=2,
-                            verbose=0):
+                            squared_root_residual=True, early_stopping=True,
+                            tol=1.0e-3, wind=2, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
 
@@ -58,7 +58,10 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
 
     Integ = DiscretInteg()
     H = ConvAndLinear(Integ, hrf, dim_in=N, dim_out=N)
-    grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+    if squared_root_residual:
+        grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+    else:
+        grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
 
     if lbda is not None:
         # solve 0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
@@ -222,6 +225,7 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
 def scaled_hrf_blind_blocs_deconvolution(
                         noisy_ar_s, tr, lbda_bold=1.0, # noqa
                         init_delta=None, init_i_s=None, dur_hrf=60.0,
+                        squared_root_residual=True,
                         nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
                         verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
@@ -258,7 +262,10 @@ def scaled_hrf_blind_blocs_deconvolution(
         H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
 
         v0 = est_i_s
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        if squared_root_residual:
+            grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+        else:
+            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
         est_i_s, _ = nesterov_forward_backward(
                     grad=grad, prox=prox_bold, v0=v0, nb_iter=10000,
                     early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
@@ -307,6 +314,7 @@ def scaled_hrf_blind_blocs_deconvolution(
 def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                         noisy_ar_s, tr, init_delta=None, init_i_s=None,
                         sigma=None, dur_hrf=60.0, nb_iter=50,
+                        squared_root_residual=True,
                         early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
@@ -346,7 +354,10 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
 
         H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
         v0 = np.zeros(N)
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+        if squared_root_residual:
+            grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+        else:
+            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
 
         for j in range(nb_iter_deconv):
             # deconvolution step
