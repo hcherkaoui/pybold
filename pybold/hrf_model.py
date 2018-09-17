@@ -5,13 +5,18 @@ import numpy as np
 from scipy.stats import gamma
 
 
+MIN_DELTA = 0.5
+MAX_DELTA = 2.0
+
+
 def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True):
     """ Custom HRF.
     """
-    if (delta < 0.3) or (delta > 5.0):
-        raise ValueError("delta should belong in [0.3, 5.0]; wich correspond"
-                         " to a max FWHM of 17.54s and a min FWHM of 1.43s"
-                         ", got delta = {0}".format(delta))
+    if (delta < MIN_DELTA) or (delta > MAX_DELTA):
+        raise ValueError("delta should belong in [{0}, {1}]; wich correspond"
+                         " to a max FWHM of 10.52s and a min FWHM of 2.80s"
+                         ", got delta = {3}".format(MIN_DELTA, MAX_DELTA,
+                                                    delta))
 
     # fixed: from the literature
     dt = 0.001
@@ -22,7 +27,7 @@ def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True):
     ratio_gamma = 0.167
 
     # time_stamp_hrf: the (continious) time segment on which we represent all
-    # the HRF. Can cut the signal too early. The time scale is second.
+    # the HRF. Can cut the HRF too early. The time scale is second.
     time_stamp_hrf = dur  # secondes
 
     # scale in time the HRF

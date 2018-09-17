@@ -3,7 +3,7 @@
 """
 import numpy as np
 from scipy.optimize import minimize
-from .hrf_model import spm_hrf
+from .hrf_model import spm_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear
 from .gradient import L2ResidualLinear
 from .solvers import nesterov_forward_backward
@@ -208,7 +208,8 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     f_cost = Tracker(scale_factor_fit_err, cst_args, verbose)
 
     res = minimize(fun=scale_factor_fit_err, x0=params_init,
-                   args=cst_args, bounds=[(0.3 + 1.0e-1, 5.0 - 1.0e-1)],
+                   args=cst_args,
+                   bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)],
                    callback=f_cost)
     delta = res.x
     J = f_cost.J
@@ -269,7 +270,8 @@ def scaled_hrf_blind_blocs_deconvolution(
         # HRF estimation
         cst_args = (est_ai_s, noisy_ar_s, tr, dur_hrf)
         res = minimize(fun=scale_factor_fit_err, x0=est_delta,
-                       args=cst_args, bounds=[(0.3 + 1.0e-1, 5.0 - 1.0e-1)])
+                       args=cst_args,
+                       bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
         est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
 
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
@@ -392,7 +394,8 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
 
         cst_args = (est_ai_s, noisy_ar_s, tr, dur_hrf)
         res = minimize(fun=scale_factor_fit_err, x0=est_delta,
-                       args=cst_args, bounds=[(0.3 + 1.0e-1, 5.0 - 1.0e-1)])
+                       args=cst_args,
+                       bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
         est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
