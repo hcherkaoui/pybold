@@ -1,9 +1,15 @@
 .. -*- mode: rst -*-
 
-|Travis|_
+|Travis|_ |Python27|_ |Python35|_ 
 
 .. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=hcherkaoui/dev
 .. _Travis: https://travis-ci.com/CherkaouiHamza/pybold
+   
+.. |Python27| image:: https://img.shields.io/badge/python-2.7-blue.svg
+.. _Python27: https://badge.fury.io/py/scikit-learn
+
+.. |Python35| image:: https://img.shields.io/badge/python-3.5-blue.svg
+.. _Python35: https://badge.fury.io/py/scikit-learn
 
 
 pyBOLD - dev
