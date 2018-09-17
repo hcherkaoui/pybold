@@ -91,7 +91,7 @@ def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
                 new_iter = np.mean(xx[-sub_wind_len:], axis=0)
                 crit_num = np.linalg.norm(new_iter - old_iter)
                 crit_deno = np.linalg.norm(new_iter)
-                diff = crit_num / crit_deno
+                diff = crit_num / (crit_deno + 1.0e-10)
                 if diff < tol:
                     if verbose > 1:
                         print("\n-----> early-stopping "

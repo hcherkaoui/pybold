@@ -372,7 +372,7 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                     new_iter = np.mean(l_alpha[-sub_wind_len:], axis=0)
                     crit_num = np.abs(new_iter - old_iter)
                     crit_deno = np.abs(new_iter)
-                    diff = crit_num / crit_deno
+                    diff = crit_num / (crit_deno + 1.0e-10)
                     if diff < 1.0e-2:
                         if verbose > 1:
                             print("\n-----> early-stopping "
@@ -413,7 +413,7 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                 sub_wind_len = int(wind/2)
                 old_j = np.mean(J[:-sub_wind_len])
                 new_j = np.mean(J[-sub_wind_len:])
-                diff = (new_j - old_j) / new_j
+                diff = (new_j - old_j) / (new_j + 1.0e-10)
                 if diff < tol:
                     if verbose > 0:
                         print("\n-----> early-stopping done at "
