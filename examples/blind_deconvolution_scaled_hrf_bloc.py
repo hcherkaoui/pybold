@@ -39,10 +39,10 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 # generate data
 hrf_dur = 30.
 dur = 10  # minutes
-tr = 1.0
-snr = 10.0
+tr = 2.0
+snr = 8.0
 
-true_hrf_delta = 1.5
+true_hrf_delta = 1.0
 orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
 params = {'tr': tr,
           'dur': dur,
@@ -54,18 +54,19 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_delta = 1.0
+init_hrf_delta = 2.0
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'lbda_bold': 0.270,  # SNR 1dB
-          #'lbda_bold': 0.140,  # SNR 5dB
-          #'lbda_bold': 0.100,  # SNR 10dB
-          #'lbda_bold': 0.055,  # SNR 20dB
-          #'lbda_bold': 0.018,  # SNR 100dB
+          'lbda_bold': 0.08,
+          # 'lbda_bold': 0.270,  # SNR 1dB
+          # 'lbda_bold': 0.140,  # SNR 5dB
+          # 'lbda_bold': 0.100,  # SNR 10dB
+          # 'lbda_bold': 0.055,  # SNR 20dB
+          # 'lbda_bold': 0.018,  # SNR 100dB
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 20,
+          'nb_iter': 100,
           'verbose': 1,
           }
 

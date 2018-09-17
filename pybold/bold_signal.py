@@ -306,8 +306,8 @@ def scaled_hrf_blind_blocs_deconvolution(
 
 def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                         noisy_ar_s, tr, init_delta=None, init_i_s=None,
-                        dur_hrf=60.0, nb_iter=50, early_stopping=False,
-                        wind=24, tol=1.0e-24, verbose=0):
+                        sigma=None, dur_hrf=60.0, nb_iter=50,
+                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
@@ -319,7 +319,7 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
     # definition of the usefull operator
     Integ = DiscretInteg()
 
-    sigma = mad_daub_noise_est(noisy_ar_s)  # estim. of the noise std
+    sigma = mad_daub_noise_est(noisy_ar_s) if sigma is None else sigma
     nb_iter_deconv = 50  # nb iters for main loop
     alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
     lbda = 1.0 / (2.0 * alpha)

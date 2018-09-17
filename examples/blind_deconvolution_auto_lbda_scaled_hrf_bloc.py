@@ -11,7 +11,7 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_regular_bloc_bold
-from pybold.hrf_model import spm_hrf
+from pybold.hrf_model import spm_hrf, MIN_DELTA, MAX_DELTA
 from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution_auto_lbda
 
@@ -39,8 +39,8 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 # generate data
 hrf_dur = 60.
 dur = 10  # minutes
-tr = 1.0
-snr = 1.0
+tr = 2.0
+snr = 8.0
 
 true_hrf_delta = 1.0
 orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
@@ -51,20 +51,18 @@ params = {'tr': tr,
           'random_state': 0,
           }
 noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
-larger_hrf, _ = spm_hrf(tr=tr, delta=0.3, dur=hrf_dur)
-tighter_hrf, _ = spm_hrf(tr=tr, delta=5.0, dur=hrf_dur)
+larger_hrf, _ = spm_hrf(tr=tr, delta=MIN_DELTA, dur=hrf_dur)
+tighter_hrf, _ = spm_hrf(tr=tr, delta=MAX_DELTA, dur=hrf_dur)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_delta = 4.0
+init_hrf_delta = MAX_DELTA
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
-larger_hrf, _ = spm_hrf(tr=tr, delta=0.3, dur=hrf_dur)
-tighter_hrf, _ = spm_hrf(tr=tr, delta=5.0, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 20,
+          'nb_iter': 100,
           'verbose': 1,
           }
 
