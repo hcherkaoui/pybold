@@ -3,12 +3,13 @@
 """
 import numpy as np
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 from .hrf_model import spm_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
 from .proximity import L1Norm
-from .utils import Tracker, mad_daub_noise_est
+from .utils import Tracker, mad_daub_noise_est, inf_norm
 
 
 def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
@@ -222,12 +223,12 @@ def hrf_scale_factor_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     return hrf, J
 
 
-def scaled_hrf_blind_blocs_deconvolution(
-                        noisy_ar_s, tr, lbda_bold=1.0, # noqa
+def scaled_hrf_blind_blocs_deconvolution( # noqa
+                        noisy_ar_s, tr, lbda_bold=1.0,
                         init_delta=None, init_i_s=None, dur_hrf=60.0,
                         squared_root_residual=True,
                         nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
-                        verbose=0):
+                        verbose=0, plotting=False):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
@@ -256,6 +257,13 @@ def scaled_hrf_blind_blocs_deconvolution(
     g_bold = np.sum(np.abs(est_i_s))
     J.append(0.5 * r + lbda_bold * g_bold)
 
+    if (verbose > 0):
+        print("global cost-function "
+              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, J[-1]))
+    if plotting:
+        fig = plt.figure(np.random.randint(99999), figsize=(20, 8))
+        plt.ion()
+
     for idx in range(nb_iter):
 
         # BOLD deconvolution
@@ -280,8 +288,50 @@ def scaled_hrf_blind_blocs_deconvolution(
                        args=cst_args,
                        bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
         est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
-
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        if plotting:
+
+            t_hrf = np.linspace(0, dur_hrf, int(dur_hrf/tr))
+            max_hrf, _ = spm_hrf(MIN_DELTA, tr=tr, dur=dur_hrf)
+            min_hrf, _ = spm_hrf(MAX_DELTA, tr=tr, dur=dur_hrf)
+            max_hrf, min_hrf, nest_hrf = inf_norm([max_hrf, min_hrf, est_hrf])
+
+            plt.gcf().clear()
+
+            t = np.linspace(0, int(N * float(tr)), N)
+            ax0 = fig.add_subplot(2, 1, 1)
+            ax0.plot(t, noisy_ar_s, label="observed signal", lw=0.5)
+            ax0.plot(t, est_ar_s, label="denoised signal", lw=1.0)
+            ax0.plot(t, est_ai_s, label="bloc signal", lw=1.5)
+            ax0.stem(t, est_i_s, label="spike signal", lw=1.5)
+            ax0.set_yticklabels([])
+            ax0.set_xlabel("time (s)")
+            ax0.set_ylabel("ampl.")
+            ax0.set_yticklabels([])
+            plt.legend()
+            plt.grid()
+            ax0.set_title("Signal", fontsize=12)
+
+            ax1 = fig.add_subplot(2, 1, 2)
+            ax1.plot(t_hrf, nest_hrf, label="est. HRF", lw=1.0)
+            ax1.plot(t_hrf, min_hrf, '--k', label="min. HRF", lw=1.5)
+            ax1.plot(t_hrf, max_hrf, '--k', label="max. HRF", lw=1.5)
+            ax1.set_yticklabels([])
+            ax1.set_xlabel("time (s)")
+            ax1.set_ylabel("ampl.")
+            ax1.set_yticklabels([])
+            plt.legend()
+            plt.grid()
+            ax1.set_title("est. HRF", fontsize=12)
+
+            fig.suptitle('Evo. estimation '
+                         '({0:03d}/{1:03d})'.format(idx+1, nb_iter),
+                         fontsize=18)
+
+            plt.tight_layout()
+
+            plt.pause(0.1)
 
         # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
@@ -306,6 +356,9 @@ def scaled_hrf_blind_blocs_deconvolution(
                               " cost-function = {2:.6f}".format(idx, nb_iter,
                                                                 J[idx]))
                     break
+    if plotting:
+        plt.ioff()
+
     J = np.array(J)
 
     return est_ar_s, est_ai_s, est_i_s, est_hrf, J
@@ -315,7 +368,8 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                         noisy_ar_s, tr, init_delta=None, init_i_s=None,
                         sigma=None, dur_hrf=60.0, nb_iter=50,
                         squared_root_residual=True,
-                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+                        early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0, plotting=False):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
@@ -347,6 +401,13 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
     J, l_alpha = [], []
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
     J.append(0.5 * r + lbda * np.sum(np.abs(est_i_s)))
+
+    if (verbose > 0):
+        print("global cost-function "
+              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, J[-1]))
+    if plotting:
+        fig = plt.figure(np.random.randint(99999), figsize=(20, 20))
+        plt.ion()
 
     for i in range(nb_iter):
 
@@ -395,11 +456,12 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
 
         # deconvolution with larger number of iterations
         prox = L1Norm(1.0 / (2.0 * alpha))
-        x, _ = nesterov_forward_backward(
+        est_i_s, _ = nesterov_forward_backward(
                         grad=grad, prox=prox, v0=v0, nb_iter=9999,
                         early_stopping=True, verbose=verbose,
                           )
-        est_ai_s = Integ.op(x)
+
+        est_ai_s = Integ.op(est_i_s)
 
         # HRF ESTIMATION --------------------------------
 
@@ -409,6 +471,48 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                        bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
         est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
+
+        if plotting:
+
+            t_hrf = np.linspace(0, dur_hrf, int(dur_hrf/tr))
+            max_hrf, _ = spm_hrf(MIN_DELTA, tr=tr, dur=dur_hrf)
+            min_hrf, _ = spm_hrf(MAX_DELTA, tr=tr, dur=dur_hrf)
+            max_hrf, min_hrf, nest_hrf = inf_norm([max_hrf, min_hrf, est_hrf])
+
+            plt.gcf().clear()
+
+            t = np.linspace(0, int(N * float(tr)), N)
+            ax0 = fig.add_subplot(2, 1, 1)
+            ax0.plot(t, noisy_ar_s, label="observed signal", lw=0.5)
+            ax0.plot(t, est_ar_s, label="denoised signal", lw=1.0)
+            ax0.plot(t, est_ai_s, label="bloc signal", lw=1.5)
+            ax0.stem(t, est_i_s, label="spike signal", lw=1.5)
+            ax0.set_yticklabels([])
+            ax0.set_xlabel("time (s)")
+            ax0.set_ylabel("ampl.")
+            ax0.set_yticklabels([])
+            plt.legend()
+            plt.grid()
+            ax0.set_title("Signal", fontsize=12)
+
+            ax1 = fig.add_subplot(2, 1, 2)
+            ax1.plot(t_hrf, nest_hrf, label="est. HRF", lw=1.0)
+            ax1.plot(t_hrf, min_hrf, '--k', label="min. HRF", lw=1.5)
+            ax1.plot(t_hrf, max_hrf, '--k', label="max. HRF", lw=1.5)
+            ax1.set_yticklabels([])
+            ax1.set_xlabel("time (s)")
+            ax1.set_ylabel("ampl.")
+            ax1.set_yticklabels([])
+            plt.legend()
+            plt.grid()
+            ax1.set_title("est. HRF", fontsize=12)
+
+            fig.suptitle('Evo. estimation '
+                         '({0:03d}/{1:03d})'.format(i+1, nb_iter), fontsize=18)
+
+            plt.tight_layout()
+
+            plt.pause(0.1)
 
         # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
@@ -431,6 +535,9 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
                               "{0:03d}/{1:03d}, global cost-function"
                               " = {2:.6f}".format(i, nb_iter, J[i]))
                     break
+    if plotting:
+        plt.ioff()
+
     J = np.array(J)
 
     return est_ar_s, est_ai_s, est_i_s, est_hrf, J
