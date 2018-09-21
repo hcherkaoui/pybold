@@ -13,7 +13,7 @@ from .utils import Tracker, mad_daub_noise_est, inf_norm
 
 
 def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
-                            squared_root_residual=True, early_stopping=True,
+                            squared_root_residual=False, early_stopping=True,
                             tol=1.0e-3, wind=2, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
@@ -62,7 +62,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
     if squared_root_residual:
         grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
     else:
-        grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
 
     if lbda is not None:
         # solve 0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
