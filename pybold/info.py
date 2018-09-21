@@ -36,20 +36,20 @@ REQUIRED_MODULE_METADATA = (
         'required_at_installation': True,
         'install_info': _PYBOLD_INSTALL_MSG}),
     ('joblib', {
-        'min_version': '0.11',
+        'min_version': '0.10',
         'required_at_installation': True,
         'install_info': _PYBOLD_INSTALL_MSG}),
     ('numpy', {
-        'min_version': '1.14.0',
+        'min_version': '1.10.0',
         'required_at_installation': True,
         'install_info': _PYBOLD_INSTALL_MSG}),
     ('scipy', {
-        'min_version': '1.0.0',
+        'min_version': '0.15.0',
         'required_at_installation': True,
         'install_info': _PYBOLD_INSTALL_MSG}),
     ('pyWavelets', {
         'import_name': 'pywt',
-        'min_version': '0.5.2',
+        'min_version': '0.3.0',
         'required_at_installation': True,
         'install_info': _PYBOLD_INSTALL_MSG}),
     )
