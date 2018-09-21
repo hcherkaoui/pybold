@@ -59,9 +59,9 @@ class TestDataGeneration(unittest.TestCase):
         snr_s = [1.0, 10.0, 20.0]
         tr_s = [0.1, 2.0]
         dur_orig_s = [3, 5, 10]  # minutes
-        hrf_time_length_s = [0.3, 1.0]
+        delta_s = [0.5, 1.0]
         listparams = [random_state_s, snr_s, tr_s, dur_orig_s,
-                      hrf_time_length_s]
+                      delta_s]
         for params in itertools.product(*listparams):
             random_state, snr, tr, dur_orig, delta = params
             nb_events = int(dur_orig/2)

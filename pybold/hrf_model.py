@@ -15,7 +15,7 @@ def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True):
     if (delta < MIN_DELTA) or (delta > MAX_DELTA):
         raise ValueError("delta should belong in [{0}, {1}]; wich correspond"
                          " to a max FWHM of 10.52s and a min FWHM of 2.80s"
-                         ", got delta = {3}".format(MIN_DELTA, MAX_DELTA,
+                         ", got delta = {2}".format(MIN_DELTA, MAX_DELTA,
                                                     delta))
 
     # fixed: from the literature

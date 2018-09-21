@@ -58,7 +58,7 @@ init_hrf_delta = 2.0
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
-          'lbda_bold': 0.08,
+          'lbda_bold': 0.11,  # SNR 8dB
           # 'lbda_bold': 0.270,  # SNR 1dB
           # 'lbda_bold': 0.140,  # SNR 5dB
           # 'lbda_bold': 0.100,  # SNR 10dB
@@ -66,8 +66,9 @@ params = {'noisy_ar_s': noisy_ar_s,
           # 'lbda_bold': 0.018,  # SNR 100dB
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 100,
+          'nb_iter': 25,
           'verbose': 1,
+          'plotting': True,
           }
 
 t0 = time.time()

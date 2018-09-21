@@ -46,7 +46,8 @@ orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
 params = {'tr': tr,
           'dur': dur,
           'snr': snr,
-          'hrf': orig_hrf
+          'hrf': orig_hrf,
+          'random_state': 0,
           }
 noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
 
@@ -56,6 +57,7 @@ params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf': orig_hrf,
           'lbda': None,
+          'squared_root_residual': False,
           'verbose': 1,
           }
 

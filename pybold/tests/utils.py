@@ -13,7 +13,7 @@ class YieldData():
         """
         dur = 1  # minutes
         tr_s = [0.1, 2.0]
-        delta_s = [0.3, 1.0]
+        delta_s = [0.5, 1.0]
         listparams = [tr_s, delta_s]
         for params in itertools.product(*listparams):
             tr, delta = params
@@ -37,7 +37,7 @@ class YieldData():
         random_state_s = [0]
         tr_s = [0.1, 2.0]
         dur_orig_s = [3, 10]  # minutes
-        delta_s = [0.3, 1.0]
+        delta_s = [0.5, 1.0]
         listparams = [random_state_s, tr_s, dur_orig_s,
                       delta_s]
         for params in itertools.product(*listparams):

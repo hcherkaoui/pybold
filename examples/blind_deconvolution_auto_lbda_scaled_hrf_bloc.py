@@ -37,7 +37,7 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
-hrf_dur = 60.
+hrf_dur = 30.
 dur = 10  # minutes
 tr = 2.0
 snr = 8.0
@@ -62,8 +62,9 @@ params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 100,
+          'nb_iter': 25,
           'verbose': 1,
+          'plotting': True,
           }
 
 t0 = time.time()
