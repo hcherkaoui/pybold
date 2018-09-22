@@ -16,6 +16,9 @@ from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution_auto_lbda
 
 
+is_travis = 'TRAVIS' in os.environ
+
+
 ###############################################################################
 # results management
 print(__doc__)
@@ -58,11 +61,12 @@ tighter_hrf, _ = spm_hrf(tr=tr, delta=MAX_DELTA, dur=hrf_dur)
 # blind deconvolution
 init_hrf_delta = MAX_DELTA
 init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
+nb_iter = 25 if not is_travis else 1
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'init_delta': init_hrf_delta,
           'dur_hrf': hrf_dur,
-          'nb_iter': 25,
+          'nb_iter': nb_iter,
           'verbose': 1,
           'plotting': True,
           }

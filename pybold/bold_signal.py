@@ -14,7 +14,7 @@ from .utils import Tracker, mad_daub_noise_est, inf_norm
 
 def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
                             squared_root_residual=False, early_stopping=True,
-                            tol=1.0e-3, wind=2, verbose=0):
+                            tol=1.0e-3, wind=2, nb_iter=1000, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
 
@@ -68,7 +68,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
         # solve 0.5 * || L h conv alpha - y ||_2^2 + lbda * || alpha ||_1
         prox = L1Norm(lbda)
         x, J = nesterov_forward_backward(
-                        grad=grad, prox=prox, v0=v0, nb_iter=9999,
+                        grad=grad, prox=prox, v0=v0, nb_iter=nb_iter,
                         early_stopping=True, verbose=verbose,
                           )
 
@@ -81,7 +81,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
     else:
         # solve || x ||_1 sc  || L h conv alpha - y ||_2^2 < sigma
         sigma = mad_daub_noise_est(noisy_ar_s)  # estim. of the noise std
-        nb_iter = 500  # nb iters for main loop
+        nb_iter = nb_iter  # nb iters for main loop
         alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
         mu = 5.0e-3  # gradient step of the lbda optimization
         for i in range(nb_iter):

@@ -15,6 +15,9 @@ from pybold.hrf_model import spm_hrf
 from pybold.bold_signal import bold_bloc_deconvolution
 
 
+is_travis = 'TRAVIS' in os.environ
+
+
 ###############################################################################
 # results management
 print(__doc__)
@@ -53,11 +56,13 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # deconvolve the signal
+nb_iter = 500 if not is_travis else 1
 params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf': orig_hrf,
           'lbda': None,
           'squared_root_residual': False,
+          'nb_iter': nb_iter,
           'verbose': 1,
           }
 
