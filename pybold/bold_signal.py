@@ -287,7 +287,8 @@ def scaled_hrf_blind_blocs_deconvolution( # noqa
         res = minimize(fun=scale_factor_fit_err, x0=est_delta,
                        args=cst_args,
                        bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
-        est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
+        est_delta = res.x
+        est_hrf, _ = spm_hrf(delta=est_delta, tr=tr, dur=dur_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
         if plotting:
@@ -469,7 +470,8 @@ def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
         res = minimize(fun=scale_factor_fit_err, x0=est_delta,
                        args=cst_args,
                        bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)])
-        est_hrf, _ = spm_hrf(delta=res.x, tr=tr, dur=dur_hrf)
+        est_delta = res.x
+        est_hrf, _ = spm_hrf(delta=est_delta, tr=tr, dur=dur_hrf)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
         if plotting:
