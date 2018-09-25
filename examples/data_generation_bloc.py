@@ -15,7 +15,7 @@ from pybold.utils import fwhm
 tr = 1.0
 snr = 1.0
 dur_orig = 4  # minutes
-hrf_delta = 2.0
+hrf_delta = 1.0
 hrf, t_hrf = spm_hrf(tr=tr, delta=hrf_delta)
 hrf_fwhm = fwhm(t_hrf, hrf)
 params = {'dur': dur_orig,
