@@ -11,13 +11,19 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_regular_bloc_bold
-from pybold.hrf_model import spm_hrf
+from pybold.hrf_model import basis3_hrf, spm_hrf
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import scaled_hrf_blind_blocs_deconvolution
+from pybold.bold_signal import blind_blocs_deconvolution
 
 
 is_travis = 'TRAVIS' in os.environ
 
+# 'lbda_bold': 0.270,  # SNR 1dB
+# 'lbda_bold': 0.140,  # SNR 5dB
+# 'lbda_bold': 0.110,  # SNR 8dB
+# 'lbda_bold': 0.100,  # SNR 10dB
+# 'lbda_bold': 0.055,  # SNR 20dB
+# 'lbda_bold': 0.018,  # SNR 100dB
 
 ###############################################################################
 # results management
@@ -42,12 +48,12 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 # generate data
 hrf_dur = 30.
 dur = 10  # minutes
-tr = 2.0
+TR = 2.0
 snr = 8.0
 
-true_hrf_delta = 1.0
-orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
-params = {'tr': tr,
+delta_orig = 1.5
+orig_hrf, t_hrf = spm_hrf(delta_orig, tr=TR, dur=hrf_dur)
+params = {'tr': TR,
           'dur': dur,
           'snr': snr,
           'hrf': orig_hrf,
@@ -57,26 +63,28 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-init_hrf_delta = 2.0
-init_hrf, _ = spm_hrf(tr=tr, delta=init_hrf_delta, dur=hrf_dur)
+hrf_params_init = np.array([0.5, 0.5, 0.1])
+init_hrf, _ = basis3_hrf(hrf_basis3_params=hrf_params_init, tr=TR, dur=hrf_dur)
+
 nb_iter = 25 if not is_travis else 1
+
 params = {'noisy_ar_s': noisy_ar_s,
-          'tr': tr,
-          'lbda_bold': 0.11,  # SNR 8dB
-          # 'lbda_bold': 0.270,  # SNR 1dB
-          # 'lbda_bold': 0.140,  # SNR 5dB
-          # 'lbda_bold': 0.100,  # SNR 10dB
-          # 'lbda_bold': 0.055,  # SNR 20dB
-          # 'lbda_bold': 0.018,  # SNR 100dB
-          'init_delta': init_hrf_delta,
+          'tr': TR,
+          'lbda_bold': 0.25,
+          'hrf_func': basis3_hrf,
+          'hrf_params': hrf_params_init,
+          'hrf_cst_params': [TR, hrf_dur],
+          'bounds': [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
           'dur_hrf': hrf_dur,
           'nb_iter': nb_iter,
           'verbose': 1,
           'plotting': True,
+          'ai_s': ai_s,
+          'hrf': orig_hrf,
           }
 
 t0 = time.time()
-results = scaled_hrf_blind_blocs_deconvolution(**params)
+results = blind_blocs_deconvolution(**params)
 est_ar_s, est_ai_s, est_i_s, est_hrf, J = results
 delta_t = time.time() - t0
 runtimes = np.linspace(0, delta_t, len(J))
@@ -85,10 +93,9 @@ print("Duration: {0:.2f} s".format(delta_t))
 
 ###############################################################################
 # post-processing
-if True:
-    est_ar_s, est_ai_s, est_i_s, est_hrf = inf_norm([est_ar_s, est_ai_s,
-                                                     est_i_s, est_hrf])
-    ar_s, ai_s, orig_hrf = inf_norm([ar_s, ai_s, orig_hrf])
+est_ar_s, est_ai_s, est_i_s = inf_norm([est_ar_s, est_ai_s, est_i_s])
+orig_hrf, init_hrf, est_hrf = inf_norm([orig_hrf, init_hrf, est_hrf])
+ar_s, ai_s = inf_norm([ar_s, ai_s])
 
 ###############################################################################
 # plotting
@@ -107,7 +114,7 @@ ax0.axhline(0.0)
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
 ax0.legend()
-ax0.set_title("Input noisy BOLD signals, TR={0}s".format(tr), fontsize=15)
+ax0.set_title("Input noisy BOLD signals, TR={0}s".format(TR), fontsize=15)
 
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
@@ -119,7 +126,7 @@ ax1.axhline(0.0)
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
 ax1.legend()
-ax1.set_title("Estimated convolved signals, TR={0}s".format(tr),
+ax1.set_title("Estimated convolved signals, TR={0}s".format(TR),
               fontsize=15)
 
 # axis 2
@@ -133,7 +140,7 @@ ax2.axhline(0.0)
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
 ax2.legend()
-ax2.set_title("Estimated signals, TR={0}s".format(tr), fontsize=15)
+ax2.set_title("Estimated signals, TR={0}s".format(TR), fontsize=15)
 
 plt.tight_layout()
 
@@ -144,7 +151,7 @@ plt.savefig(filename)
 
 # plot 2
 fig = plt.figure(2, figsize=(15, 10))
-t_hrf = np.linspace(0, len(orig_hrf) * tr, len(orig_hrf))
+t_hrf = np.linspace(0, len(orig_hrf) * TR, len(orig_hrf))
 
 label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
 plt.plot(t_hrf, orig_hrf, '-b', label=label)
@@ -155,9 +162,9 @@ plt.plot(t_hrf, init_hrf, '--r', label=label)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
-plt.title("Original HRF, TR={0}s".format(tr), fontsize=20)
+plt.title("Original HRF, TR={0}s".format(TR), fontsize=20)
 
-filename = "est_hrf_{0}.png".format(true_hrf_delta)
+filename = "est_hrf.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

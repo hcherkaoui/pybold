@@ -4,21 +4,24 @@
 import matplotlib
 matplotlib.use('Agg')
 
+import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_rnd_bloc_bold
-from pybold.hrf_model import spm_hrf
-from pybold.utils import fwhm
+from pybold.hrf_model import basis3_hrf
+from pybold.utils import fwhm, tp
 
 
 ###############################################################################
 # generate the signal
 tr = 1.0
 snr = 1.0
-dur_orig = 4  # minutes
-hrf_delta = 1.0
-hrf, t_hrf = spm_hrf(tr=tr, delta=hrf_delta)
+dur = 4  # minutes
+hrf_dur = 30.0
+hrf_params = np.array([0.7, 0.7, 0.05])
+hrf, t_hrf = basis3_hrf(hrf_basis3_params=hrf_params, tr=tr, dur=hrf_dur)
 hrf_fwhm = fwhm(t_hrf, hrf)
-params = {'dur': dur_orig,
+hrf_tp = tp(t_hrf, hrf)
+params = {'dur': dur,
           'tr': tr,
           'hrf': hrf,
           'nb_events': 4,
@@ -69,7 +72,8 @@ ax3.plot(t_hrf, hrf, label="Original HRF")
 ax3.set_xlabel("time (s)")
 ax3.set_ylabel("ampl.")
 ax3.legend()
-title = r"HRF, TR={0}s, FWHM={1:.2f}s".format(tr, fwhm(t_hrf, hrf))
+title = (r"HRF, TR={0}s, FWHM={1:.2f}s, "
+         "TP={2:.2f}s".format(tr, fwhm(t_hrf, hrf), tp(t_hrf, hrf)))
 ax3.set_title(title, fontsize=20)
 
 plt.tight_layout()

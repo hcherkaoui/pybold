@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.bold_signal import hrf_scale_factor_estimation
+from pybold.bold_signal import scale_factor_hrf_estimation
 from pybold.utils import fwhm
 
 
@@ -70,7 +70,7 @@ params = {'ai_i_s': ai_s,
           }
 
 t0 = time.time()
-est_hrf, J = hrf_scale_factor_estimation(**params)
+est_hrf, J = scale_factor_hrf_estimation(**params)
 delta_t = np.round(time.time() - t0, 1)
 runtimes = np.linspace(0, delta_t, len(J))
 

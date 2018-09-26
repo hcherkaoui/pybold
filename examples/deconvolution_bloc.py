@@ -61,7 +61,7 @@ params = {'noisy_ar_s': noisy_ar_s,
           'tr': tr,
           'hrf': orig_hrf,
           'lbda': None,
-          'squared_root_residual': False,
+          'L2_res': True,
           'nb_iter': nb_iter,
           'verbose': 1,
           }
