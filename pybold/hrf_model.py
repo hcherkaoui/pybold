@@ -22,8 +22,8 @@ def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True, dt=0.001, p_delay=6,
 
     # dur: the (continious) time segment on which we represent all
     # the HRF. Can cut the HRF too early. The time scale is second.
-    time_stamps = np.linspace(0, dur, float(dur) / dt)
-    scaled_time_stamps = delta * time_stamps
+    t = np.linspace(0, dur, float(dur) / dt)
+    scaled_time_stamps = delta * t
 
     peak = gamma.pdf(scaled_time_stamps, p_delay/p_disp, loc=dt/p_disp)
     undershoot = gamma.pdf(scaled_time_stamps, undershoot/u_disp,
@@ -31,10 +31,11 @@ def spm_hrf(delta, tr=1.0, dur=60.0, normalized_hrf=True, dt=0.001, p_delay=6,
     hrf = peak - p_u_ratio * undershoot
 
     if normalized_hrf:
-        hrf *= (10.0 / (np.linalg.norm(hrf) + 1.0e-30))
+        hrf /= (np.linalg.norm(hrf) + 1.0e-30)
+        hrf *= 10.0
 
     hrf = hrf[::int(tr/dt)]
-    t_hrf = time_stamps[::int(tr/dt)]
+    t_hrf = t[::int(tr/dt)]
 
     return hrf, t_hrf
 
@@ -51,7 +52,8 @@ def il_hrf(hrf_logit_params, tr=1.0, dur=60.0, normalized_hrf=True):
     hrf = il_1 + il_2 + il_3
 
     if normalized_hrf:
-        hrf *= (10.0 / (np.linalg.norm(hrf) + 1.0e-30))
+        hrf /= (np.linalg.norm(hrf) + 1.0e-30)
+        hrf *= 10.0
 
     return hrf, t_hrf, [il_1, il_2, il_3]
 
@@ -69,6 +71,7 @@ def basis3_hrf(hrf_basis3_params, tr=1.0, dur=60.0, normalized_hrf=True):
     hrf = alpha_1*hrf_1 + alpha_2*hrf_2 + alpha_3*hrf_3
 
     if normalized_hrf:
-        hrf *= (10.0 / (np.linalg.norm(hrf) + 1.0e-30))
+        hrf /= (np.linalg.norm(hrf) + 1.0e-30)
+        hrf *= 10.0
 
     return hrf, t_hrf
