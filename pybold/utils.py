@@ -82,7 +82,7 @@ def mad_daub_noise_est(x, c=0.6744):
 
 
 class Tracker:
-    """ Callback class to be used with fmin_bfgs from Scipy.
+    """ Callback class to be used with optimization function from Scipy.
     """
     def __init__(self, f, args, verbose=0):
         self.J = []
@@ -124,10 +124,15 @@ def fwhm(t_hrf, hrf, k=3):
     s = splrep(t_hrf, hrf - half_max, k=k)
     roots = sproot(s)
     try:
-        fwhm_ = np.abs(roots[1] - roots[0])
+        return np.abs(roots[1] - roots[0])
     except IndexError:
-        fwhm_ = -1
-    return fwhm_
+        return -1
+
+
+def tp(t_hrf, hrf):
+    """ Return time to peak oh the signal.
+    """
+    return t_hrf[np.argmax(hrf)]
 
 
 def random_generator(random_state):
