@@ -220,7 +220,7 @@ def blind_blocs_deconvolution( # noqa
     # initialization of the HRF
     if (hrf_params is None) and (hrf_func is None) and \
        (hrf_cst_params is None):
-        est_hrf_params = 1.0
+        hrf_params = 1.0
         hrf_cst_params = [tr, dur_hrf]
         hrf_func = spm_hrf
         bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
@@ -387,7 +387,7 @@ def blind_blocs_deconvolution( # noqa
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
     est_i_s, _ = nesterov_forward_backward(
                 grad=grad, prox=prox_bold, v0=v0, nb_iter=100000,
-                early_stopping=True, wind=2, tol=1.0e-10, verbose=verbose,
+                early_stopping=True, wind=8, tol=1.0e-24, verbose=verbose,
                     )
 
     est_ai_s = Integ.op(est_i_s)
