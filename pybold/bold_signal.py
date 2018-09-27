@@ -12,9 +12,9 @@ from .proximity import L1Norm
 from .utils import Tracker, mad_daub_noise_est, inf_norm, fwhm, tp
 
 
-def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
-                            L2_res=False, early_stopping=True,
-                            tol=1.0e-3, wind=2, nb_iter=1000, verbose=0):
+def deconvolution(noisy_ar_s, tr, hrf, lbda=None, L2_res=False,
+                  early_stopping=True, tol=1.0e-3, wind=2, nb_iter=1000,
+                  verbose=0, ai_s=None):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
 
@@ -52,7 +52,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
     if wind < 2:
         raise ValueError("wind should at least 2, got {0}".format(wind))
 
-    l_alpha, R, G = [], [], []
+    l_alpha, J, R, G = [], [], [], []
     N = len(noisy_ar_s)
 
     v0 = np.zeros(N)
@@ -76,7 +76,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
         est_ai_s = Integ.op(x)
         est_ar_s = Conv(hrf, N).op(est_ai_s)
 
-        return est_ar_s, est_ai_s, est_i_s, J, None
+        return est_ar_s, est_ai_s, est_i_s, J, None, None
 
     else:
         # solve || x ||_1 sc  || L h conv alpha - y ||_2^2 < sigma
@@ -105,12 +105,14 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
             g = np.sum(np.abs(x))
             R.append(r)
             G.append(g)
+            lbda = 1.0 / (2.0 * alpha)
+            J.append(0.5 * r + lbda * g)
             if verbose > 0:
                 print("Main loop: iteration {0:03d},"
                       " lbda = {1:0.6f},"
                       " l1-norm = {2:0.6f},"
                       " N*sigma**2 = {3:0.6f},"
-                      " ||r-sigma||_2^2 = {4:0.6f}".format(i+1, lbda, g,
+                      " res = {4:0.6f}".format(i+1, lbda, g,
                                                            N*sigma**2, r))
 
             # early stopping
@@ -142,7 +144,7 @@ def bold_bloc_deconvolution(noisy_ar_s, tr, hrf, lbda=None,
         est_ai_s = Integ.op(x)
         est_ar_s = Conv(hrf, N).op(est_ai_s)
 
-        return est_ar_s, est_ai_s, est_i_s, R, G
+        return est_ar_s, est_ai_s, est_i_s, J, R, G
 
 
 def hrf_fit_err(hrf_params, ai_i_s, ar_s, hrf_cst_params, hrf_func, L2_res):
