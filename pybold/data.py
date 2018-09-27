@@ -39,7 +39,7 @@ def gen_regular_bloc_bold(dur=10, tr=1.0, dur_bloc=30.0, hrf=None, snr=1.0,
     return noisy_ar_s, ar_s, ai_s, i_s, t, hrf, noise
 
 
-def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
+def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5,
                 random_state=None, nb_try=1000, nb_try_duration=1000,
                 centered=False):
     """ Generate a innovation signal.
@@ -122,7 +122,7 @@ def gen_rnd_i_s(dur=3, tr=1.0, nb_events=4, avg_ampl=1, std_ampl=0.5, #noqa
                        "function with possibly new arguments.")
 
 
-def gen_rnd_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1, #noqa
+def gen_rnd_ai_s(dur=3, tr=1.0, nb_events=4, avg_dur=5, std_dur=1,
                  middle_spike=False, overlapping=False, unitary_block=False,
                  random_state=None, nb_try=1000, nb_try_duration=1000,
                  centered=False):

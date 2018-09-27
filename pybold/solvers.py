@@ -4,7 +4,7 @@
 import numpy as np
 
 
-def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999, #noqa
+def nesterov_forward_backward(grad, prox, v0=None, nb_iter=9999,
                               early_stopping=True, wind=8, tol=1.0e-8,
                               verbose=0):
     """ Nesterov forward backward algorithm.
