@@ -83,7 +83,7 @@ class SquaredL2ResidualLinear:
     def cost(self, x):
         """ Return 1/2 || h.convolve(x) - y ||_2^2.
         """
-        return np.linalg.norm(self.L.op(x) - self.y)
+        return 0.5 * np.linalg.norm(self.L.op(x) - self.y)
 
     def op(self, x):
         """ Return h.adj_convolve( h.convolve(x) - y )
