@@ -55,7 +55,7 @@ To run all the tests, run the following command from the pybold directory::
 
 To run the examples, go to the directories examples and run a script, e.g.::
 
-    python deconvolution_bloc.py
+    python deconvolution.py
 
 
 Development
