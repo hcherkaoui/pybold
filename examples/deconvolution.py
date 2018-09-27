@@ -1,21 +1,29 @@
 # coding: utf-8
 """Simple deconvolution example.
 """
-import matplotlib
-matplotlib.use('Agg')
-
 import os
+
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ["NUMEXPR_NUM_THREADS"] = '1'
+os.environ["OMP_NUM_THREADS"] = '1'
+
 import shutil
 import time
 from datetime import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.bold_signal import bold_bloc_deconvolution
+from pybold.bold_signal import deconvolution
 
 
 is_travis = 'TRAVIS' in os.environ
+
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
 
 
 ###############################################################################
@@ -23,7 +31,7 @@ is_travis = 'TRAVIS' in os.environ
 print(__doc__)
 
 d = datetime.now()
-dirname = ('results_deconvolution_synthesis_'
+dirname = ('results_deconvolution_'
            '#{0}{1}{2}{3}{4}{5}'.format(d.year,
                                         d.month,
                                         d.day,
@@ -67,11 +75,15 @@ params = {'noisy_ar_s': noisy_ar_s,
           }
 
 t0 = time.time()
-est_ar_s, est_ai_s, est_i_s, R, G = bold_bloc_deconvolution(**params)
+est_ar_s, est_ai_s, est_i_s, J, R, G = deconvolution(**params)
 delta_t = np.round(time.time() - t0, 3)
 runtimes = np.linspace(0, delta_t, len(R))
 
 print("Duration: {0} s".format(delta_t))
+
+est_noise = noisy_ar_s - est_ar_s
+print("noise std: {0:0.6f}, est. noise std: {1:0.6f}".format(np.std(noise), np.std(est_noise)))
+print("noise L2: {0:0.6f}, est. noise L2: {1:0.6f}".format(np.linalg.norm(noise), np.linalg.norm(est_noise)))
 
 ###############################################################################
 # plotting
@@ -127,7 +139,7 @@ plt.savefig(filename)
 
 # plot 2
 fig = plt.figure(2, figsize=(5, 5))
-plt.plot(runtimes, R, linewidth=3.0)
+plt.plot(runtimes, J, linewidth=3.0)
 plt.xlabel("times (s)")
 plt.ylabel("residual")
 plt.title("Evolution of the residual")

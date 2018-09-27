@@ -1,14 +1,20 @@
 # coding: utf-8
 """ Data generation example.
 """
-import matplotlib
-matplotlib.use('Agg')
-
+import os
 import numpy as np
-import matplotlib.pyplot as plt
 from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import basis3_hrf
 from pybold.utils import fwhm, tp
+
+
+is_travis = 'TRAVIS' in os.environ
+
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
 
 
 ###############################################################################
