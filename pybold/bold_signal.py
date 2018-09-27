@@ -235,27 +235,28 @@ def _hrf_estimation(ai_i_s, ar_s, params_init, hrf_cst_params, hrf_func,
 
     hrf_params, f_value, _ = fmin_l_bfgs_b(
                         func=hrf_fit_err, x0=params_init, args=args,
-                        bounds=bounds, approx_grad=True, callback=f_cost)
-    J = f_cost.J
+                        bounds=bounds, approx_grad=True, callback=f_cost,
+                        maxiter=999, pgtol=1.0e-12)
+
+    J = f_cost.J / f_cost.J[0]
 
     hrf = hrf_func(hrf_params, *hrf_cst_params)[0]
 
     return hrf, J
 
 
-def blind_blocs_deconvolution( # noqa
-                        noisy_ar_s, tr, lbda_bold=1.0, hrf_func=None,
-                        hrf_params=None, hrf_cst_params=None, bounds=None,
-                        init_i_s=None, dur_hrf=60.0, L2_res=True, nb_iter=50,
-                        early_stopping=False, wind=24, tol=1.0e-24, verbose=0,
-                        plotting=False, ai_s=None, hrf=None):
+def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None,
+                        hrf_func=None, hrf_params=None, hrf_cst_params=None,
+                        bounds=None, init_i_s=None, dur_hrf=60.0, L2_res=True,
+                        nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
+                        verbose=0, plotting=False, ai_s=None, hrf=None):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
     # initialization of the HRF
     if (hrf_params is None) and (hrf_func is None) and \
        (hrf_cst_params is None):
-        hrf_params = 1.0
+        hrf_params = MAX_DELTA
         hrf_cst_params = [tr, dur_hrf]
         hrf_func = spm_hrf
         bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
@@ -267,9 +268,17 @@ def blind_blocs_deconvolution( # noqa
     est_hrf = hrf_func(est_hrf_params, *hrf_cst_params)[0]
 
     N = len(noisy_ar_s)
-    # definition of the usefull operator
+
     Integ = DiscretInteg()
-    prox_bold = L1Norm(lbda_bold)
+
+    no_lbda = lbda is None
+
+    if no_lbda:
+        sigma = mad_daub_noise_est(noisy_ar_s) if sigma is None else sigma
+        nb_iter_deconv = 50  # nb iters for main loop
+        alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
+        lbda = 1.0 / (2.0 * alpha)
+        mu = 1.0e-2  # gradient step of the lbda optimization
 
     # initialization of the source signal
     if init_i_s is None:
@@ -282,14 +291,26 @@ def blind_blocs_deconvolution( # noqa
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
     # init cost function value
-    J = []
-    r = np.sum(np.square(est_ar_s - noisy_ar_s))
-    g_bold = np.sum(np.abs(est_i_s))
-    J.append(0.5 * r + lbda_bold * g_bold)
+    nb_iter_deconv = 500
+
+    d = {}
+    if ai_s is not None:
+        d['err_ai_s'] = [1.0]
+        err_ai_s_0 = np.linalg.norm(est_ai_s-ai_s)
+    if hrf is not None:
+        d['err_hrf'] = [1.0]
+        err_hrf_0 = np.linalg.norm(est_hrf-hrf)
+    r_0 = np.sum(np.square(est_ar_s - noisy_ar_s))
+    d['r'] = [1.0]
+    g_0 = np.sum(np.abs(est_i_s))
+    d['g'] = [g_0]
+    j_0 = r_0 + lbda * g_0
+    d['J'] = [1.0]
+    d['l_alpha'] = []
 
     if (verbose > 0):
         print("global cost-function "
-              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, J[-1]))
+              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, d['J'][-1]))
     if plotting:
         fig = plt.figure(np.random.randint(99999), figsize=(20, 8))
         plt.ion()
@@ -299,35 +320,36 @@ def blind_blocs_deconvolution( # noqa
         if plotting:
 
             t_hrf = np.linspace(0, dur_hrf, int(dur_hrf/tr))
-            noisy_ar_s, est_ar_s = inf_norm([noisy_ar_s, est_ar_s])
-            est_ai_s, est_i_s, est_hrf = inf_norm([est_ai_s, est_i_s, est_hrf])
+            n_noisy_ar_s, n_est_ar_s = inf_norm([noisy_ar_s, est_ar_s])
+            n_est_ai_s, n_est_i_s = inf_norm([est_ai_s, est_i_s])
+            n_est_hrf = inf_norm(est_hrf)
 
             if (ai_s is not None) and (hrf is not None):
                 i_s = Diff().op(ai_s)
-                ai_s, i_s, hrf = inf_norm([ai_s, i_s, hrf])
+                n_ai_s, n_i_s, n_hrf = inf_norm([ai_s, i_s, hrf])
 
             plt.gcf().clear()
 
             t = np.linspace(0, int(N * float(tr)), N)
 
             ax0 = fig.add_subplot(3, 1, 1)
-            ax0.plot(t, noisy_ar_s, label="observed signal", lw=0.5)
-            ax0.plot(t, est_ar_s, label="denoised signal", lw=1.0)
+            ax0.plot(t, n_noisy_ar_s, label="observed signal", lw=0.5)
+            ax0.plot(t, n_est_ar_s, label="denoised signal", lw=1.0)
             ax0.set_yticklabels([])
             ax0.set_xlabel("time (s)")
             ax0.set_ylabel("ampl.")
             ax0.set_yticklabels([])
             plt.legend()
             plt.grid()
-            title = "Convolved signals ({0:03d}/{1:03d})".format(idx+1, nb_iter)
+            title = "Conv. signals ({0:03d}/{1:03d})".format(idx+1, nb_iter)
             ax0.set_title(title, fontsize=15)
 
             ax1 = fig.add_subplot(3, 1, 2)
-            ax1.plot(t, est_ai_s, label="bloc signal", lw=1.5)
-            ax1.stem(t, est_i_s, label="spike signal")
+            ax1.plot(t, n_est_ai_s, label="bloc signal", lw=1.5)
+            ax1.stem(t, n_est_i_s, label="spike signal")
             if (ai_s is not None) and (hrf is not None):
-                ax1.plot(t, ai_s, label="orig. bloc signal", lw=1.5)
-                ax1.stem(t, i_s, label="orig. spike signal")
+                ax1.plot(t, n_ai_s, label="orig. bloc signal", lw=1.5)
+                ax1.stem(t, n_i_s, label="orig. spike signal")
             ax1.set_yticklabels([])
             ax1.set_xlabel("time (s)")
             ax1.set_ylabel("ampl.")
@@ -341,13 +363,13 @@ def blind_blocs_deconvolution( # noqa
             label = ("est. HRF, params='{0}' FWHM={1:.2f}s, "
                      "TP={2:.2f}s".format(est_hrf_params, fwhm(t_hrf, est_hrf),
                                           tp(t_hrf, est_hrf)))
-            ax2.plot(t_hrf, est_hrf, label=label, lw=1.0)
+            ax2.plot(t_hrf, n_est_hrf, label=label, lw=1.0)
             if (ai_s is not None) and (hrf is not None):
 
                 label = ("orig. HRF, FWHM={0:.2f}s, "
                          "TP={1:.2f}s".format(fwhm(t_hrf, hrf),
                                               tp(t_hrf, hrf)))
-                ax2.plot(t_hrf, hrf, label=label, lw=1.0)
+                ax2.plot(t_hrf, n_hrf, label=label, lw=1.0)
             ax2.set_yticklabels([])
             ax2.set_xlabel("time (s)")
             ax2.set_ylabel("ampl.")
@@ -361,59 +383,125 @@ def blind_blocs_deconvolution( # noqa
 
             plt.pause(0.1)
 
-        # BOLD deconvolution
-        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+        # BOLD deconvolution --------------------------------
+        if no_lbda:
+            H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+            v0 = est_i_s
+            if L2_res:
+                grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+            else:
+                grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
 
-        v0 = est_i_s
-        if L2_res:
-            grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+            for j in range(nb_iter_deconv):
+                # deconvolution step
+                lbda = 1.0 / (2.0 * alpha)
+                prox = L1Norm(lbda)
+                x, _ = nesterov_forward_backward(
+                                grad=grad, prox=prox, v0=v0, nb_iter=1000,
+                                early_stopping=True, wind=8, tol=1.0e-12,
+                                verbose=verbose,
+                                  )
+                # lambda optimization
+                alpha += mu * (grad.residual(x) - N * sigma**2)
+
+                # iterate update and saving
+                d['l_alpha'].append(alpha)
+                # only hold the 'wind' last iterates
+                if len(d['l_alpha']) > wind:
+                    d['l_alpha'] = d['l_alpha'][1:]
+
+                # early stopping
+                if early_stopping:
+                    if j > 2:
+                        sub_wind_len = int(wind/2)
+                        old_iter = np.mean(d['l_alpha'][:-sub_wind_len],
+                                           axis=0)
+                        new_iter = np.mean(d['l_alpha'][-sub_wind_len:],
+                                           axis=0)
+                        crit_num = np.abs(new_iter - old_iter)
+                        crit_deno = np.abs(new_iter)
+                        diff = crit_num / (crit_deno + 1.0e-10)
+                        if diff < 1.0e-2:
+                            if verbose > 1:
+                                print("\n-----> early-stopping "
+                                      "done at {0:03d}/{1:03d}, "
+                                      "cost function = "
+                                      "{2:.6f}".format(j+1, nb_iter,
+                                                       d['J'][j]))
+                            break
+
+            # deconvolution with larger number of iterations
+            prox = L1Norm(1.0 / (2.0 * alpha))
+            est_i_s, _ = nesterov_forward_backward(
+                            grad=grad, prox=prox, v0=v0, nb_iter=5000,
+                            early_stopping=True, wind=8, tol=1.0e-12,
+                            verbose=verbose,
+                              )
+
         else:
-            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-        est_i_s, _ = nesterov_forward_backward(
-                    grad=grad, prox=prox_bold, v0=v0, nb_iter=50000,
-                    early_stopping=True, wind=2, tol=1.0e-10, verbose=verbose,
-                        )
+            prox_bold = L1Norm(lbda)
+            H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+
+            v0 = est_i_s
+            if L2_res:
+                grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
+            else:
+                grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
+            est_i_s, _ = nesterov_forward_backward(
+                        grad=grad, prox=prox_bold, v0=v0, nb_iter=5000,
+                        early_stopping=True, wind=8, tol=1.0e-12,
+                        verbose=verbose,
+                            )
 
         est_ai_s = Integ.op(est_i_s)
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
-        # HRF estimation
+        # HRF estimation --------------------------------
         args = [est_ai_s, noisy_ar_s] + [hrf_cst_params] + [hrf_func] + [True]
         args = tuple(args)
         est_hrf_params, f_value, _ = fmin_l_bfgs_b(
                             func=hrf_fit_err, x0=est_hrf_params, args=args,
-                            bounds=bounds, approx_grad=True)
+                            bounds=bounds, approx_grad=True, maxiter=1000,
+                            pgtol=1.0e-12)
         est_hrf = hrf_func(est_hrf_params, *hrf_cst_params)[0]
         est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
         # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
-        g_bold = np.sum(np.abs(est_i_s))
-        J.append(0.5 * r + lbda_bold * g_bold)
+        g = np.sum(np.abs(est_i_s))
+        d['J'].append((r + lbda * g) / j_0)
+        d['r'].append(r / r_0)
+        d['g'].append(g)
+        if ai_s is not None:
+            d['err_ai_s'].append(np.linalg.norm(est_ai_s-ai_s) / err_ai_s_0)
+        if hrf is not None:
+            d['err_hrf'].append(np.linalg.norm(est_hrf-hrf) / err_hrf_0)
 
         if (verbose > 0):
-            print("global cost-function "
-                  "({0:03d}/{1:03d}): {2:.6f}".format(idx+1, nb_iter, J[-1]))
+            print("normalized global cost-function "
+                  "({0:03d}/{1:03d}): {2:.6f}".format(idx+1, nb_iter,
+                                                      d['J'][-1]))
 
         # early stopping
         if early_stopping:
             if idx > wind:
                 sub_wind_len = int(wind/2)
-                old_j = np.mean(J[:-sub_wind_len])
-                new_j = np.mean(J[-sub_wind_len:])
+                old_j = np.mean(d['J'][:-sub_wind_len])
+                new_j = np.mean(d['J'][-sub_wind_len:])
                 diff = (new_j - old_j) / new_j
                 if diff < tol:
                     if verbose > 0:
                         print("\n-----> early-stopping done at "
                               "{0:03d}/{1:03d}, global"
-                              " cost-function = {2:.6f}".format(idx, nb_iter,
-                                                                J[idx]))
+                              " noralized cost-function = "
+                              "{2:.6f}".format(idx, nb_iter, d['J'][idx]))
                     break
     if plotting:
         plt.ioff()
 
-    # last BOLD deconvolution
+    # last BOLD deconvolution --------------------------------
     H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
+    prox = L1Norm(lbda)
 
     v0 = np.zeros(N)
     if L2_res:
@@ -421,264 +509,27 @@ def blind_blocs_deconvolution( # noqa
     else:
         grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
     est_i_s, _ = nesterov_forward_backward(
-                grad=grad, prox=prox_bold, v0=v0, nb_iter=100000,
-                early_stopping=True, wind=8, tol=1.0e-24, verbose=verbose,
+                grad=grad, prox=prox, v0=v0, nb_iter=10000,
+                early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
                     )
 
     est_ai_s = Integ.op(est_i_s)
     est_ar_s = Conv(est_hrf, N).op(est_ai_s)
 
     r = np.sum(np.square(est_ar_s - noisy_ar_s))
-    g_bold = np.sum(np.abs(est_i_s))
-    J.append(0.5 * r + lbda_bold * g_bold)
+    g = np.sum(np.abs(est_i_s))
+    d['J'].append((r + lbda * g) / j_0)
+    d['r'].append(r / r_0)
+    d['g'].append(g)
+    if ai_s is not None:
+        d['err_ai_s'].append(np.linalg.norm(est_ai_s-ai_s) / err_ai_s_0)
+        d['err_ai_s'] = np.array(d['err_ai_s'])
+    if hrf is not None:
+        d['err_hrf'].append(np.linalg.norm(est_hrf-hrf) / err_hrf_0)
+        d['err_hrf'] = np.array(d['err_hrf'])
 
-    J = np.array(J)
+    d['J'] = np.array(d['J'])
+    d['r'] = np.array(d['r'])
+    d['g'] = np.array(d['g'])
 
-    return est_ar_s, est_ai_s, est_i_s, est_hrf, J
-
-
-def scaled_hrf_blind_blocs_deconvolution_auto_lbda( # noqa
-                        noisy_ar_s, tr, hrf_func=None, hrf_params=None,
-                        hrf_cst_params=None, init_i_s=None,
-                        sigma=None, dur_hrf=60.0, nb_iter=50,
-                        L2_res=True,
-                        early_stopping=False, wind=24, tol=1.0e-24,
-                        verbose=0, plotting=False):
-    """ BOLD blind deconvolution function based on a scaled HRF model and an
-    blocs BOLD model.
-    """
-    bounds = None
-    # initialization of the HRF
-    if (hrf_params is None) and (hrf_func is None) and \
-       (hrf_cst_params is None):
-        est_hrf_params = 1.0
-        hrf_cst_params = [tr, dur_hrf]
-        hrf_func = spm_hrf
-        bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
-    elif (hrf_params is None) or (hrf_func is None) or \
-         (hrf_cst_params is None):
-        raise ValueError("Please specify properly the HRF model")
-
-    est_hrf_params = hrf_params
-    est_hrf = hrf_func(est_hrf_params, *hrf_cst_params)[0]
-
-    N = len(noisy_ar_s)
-    # definition of the usefull operator
-    Integ = DiscretInteg()
-
-    sigma = mad_daub_noise_est(noisy_ar_s) if sigma is None else sigma
-    nb_iter_deconv = 50  # nb iters for main loop
-    alpha = 1.0  # init regularization parameter lbda = 1/(2*alpha)
-    lbda = 1.0 / (2.0 * alpha)
-    mu = 1.0e-2  # gradient step of the lbda optimization
-
-    # initialization of the source signal
-    if init_i_s is None:
-        est_i_s = np.zeros(N)  # init spiky signal
-        est_ai_s = np.zeros(N)  # init spiky signal
-        est_ar_s = np.zeros(N)  # thus.. init convolved signal
-    else:
-        est_i_s = init_i_s
-        est_ai_s = Integ.op(est_i_s)
-        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
-
-    # init cost function value
-    J, l_alpha = [], []
-    r = np.sum(np.square(est_ar_s - noisy_ar_s))
-    J.append(0.5 * r + lbda * np.sum(np.abs(est_i_s)))
-
-    if (verbose > 0):
-        print("global cost-function "
-              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, J[-1]))
-    if plotting:
-        fig = plt.figure(np.random.randint(99999), figsize=(20, 20))
-        plt.ion()
-
-    for i in range(nb_iter):
-
-        # BOLD DECONVOLUTION --------------------------------
-
-        H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
-        v0 = est_i_s
-        if L2_res:
-            grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
-        else:
-            grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-
-        for j in range(nb_iter_deconv):
-            # deconvolution step
-            lbda = 1.0 / (2.0 * alpha)
-            prox = L1Norm(lbda)
-            x, _ = nesterov_forward_backward(
-                            grad=grad, prox=prox, v0=v0, nb_iter=999,
-                            early_stopping=True, verbose=verbose,
-                              )
-            # lambda optimization
-            alpha += mu * (grad.residual(x) - N * sigma**2)
-
-            # iterate update and saving
-            l_alpha.append(alpha)
-            if len(l_alpha) > wind:  # only hold the 'wind' last iterates
-                l_alpha = l_alpha[1:]
-
-            # early stopping
-            if early_stopping:
-                if j > 2:
-                    sub_wind_len = int(wind/2)
-                    old_iter = np.mean(l_alpha[:-sub_wind_len], axis=0)
-                    new_iter = np.mean(l_alpha[-sub_wind_len:], axis=0)
-                    crit_num = np.abs(new_iter - old_iter)
-                    crit_deno = np.abs(new_iter)
-                    diff = crit_num / (crit_deno + 1.0e-10)
-                    if diff < 1.0e-2:
-                        if verbose > 1:
-                            print("\n-----> early-stopping "
-                                  "done at {0:03d}/{1:03d}, "
-                                  "cost function = {2:.6f}".format(j+1,
-                                                                   nb_iter,
-                                                                   J[j]))
-                        break
-
-        # deconvolution with larger number of iterations
-        prox = L1Norm(1.0 / (2.0 * alpha))
-        est_i_s, _ = nesterov_forward_backward(
-                        grad=grad, prox=prox, v0=v0, nb_iter=9999,
-                        early_stopping=True, verbose=verbose,
-                          )
-
-        est_ai_s = Integ.op(est_i_s)
-
-        # HRF ESTIMATION --------------------------------
-
-        args = [est_ai_s, noisy_ar_s] + [hrf_cst_params] + [hrf_func] + [True]
-        args = tuple(args)
-        est_hrf_params, f_value, _ = fmin_l_bfgs_b(
-                            func=hrf_fit_err, x0=est_hrf_params, args=args,
-                            bounds=bounds, approx_grad=True)
-        est_hrf = hrf_func(est_hrf_params, *hrf_cst_params)[0]
-        est_ar_s = Conv(est_hrf, N).op(est_ai_s)
-
-        if plotting:
-
-            t_hrf = np.linspace(0, dur_hrf, int(dur_hrf/tr))
-            max_hrf, _ = spm_hrf(MIN_DELTA, tr=tr, dur=dur_hrf)
-            min_hrf, _ = spm_hrf(MAX_DELTA, tr=tr, dur=dur_hrf)
-            max_hrf, min_hrf, nest_hrf = inf_norm([max_hrf, min_hrf, est_hrf])
-
-            plt.gcf().clear()
-
-            t = np.linspace(0, int(N * float(tr)), N)
-            ax0 = fig.add_subplot(2, 1, 1)
-            ax0.plot(t, noisy_ar_s, label="observed signal", lw=0.5)
-            ax0.plot(t, est_ar_s, label="denoised signal", lw=1.0)
-            ax0.plot(t, est_ai_s, label="bloc signal", lw=1.5)
-            ax0.stem(t, est_i_s, label="spike signal")
-            ax0.set_yticklabels([])
-            ax0.set_xlabel("time (s)")
-            ax0.set_ylabel("ampl.")
-            ax0.set_yticklabels([])
-            plt.legend()
-            plt.grid()
-            ax0.set_title("Signal", fontsize=12)
-
-            ax1 = fig.add_subplot(2, 1, 2)
-            ax1.plot(t_hrf, nest_hrf, label="est. HRF", lw=1.0)
-            ax1.plot(t_hrf, min_hrf, '--k', label="min. HRF", lw=1.5)
-            ax1.plot(t_hrf, max_hrf, '--k', label="max. HRF", lw=1.5)
-            ax1.set_yticklabels([])
-            ax1.set_xlabel("time (s)")
-            ax1.set_ylabel("ampl.")
-            ax1.set_yticklabels([])
-            plt.legend()
-            plt.grid()
-            ax1.set_title("est. HRF", fontsize=12)
-
-            fig.suptitle('Evo. estimation '
-                         '({0:03d}/{1:03d})'.format(i+1, nb_iter), fontsize=18)
-
-            plt.tight_layout()
-
-            plt.pause(0.1)
-
-        # cost function
-        r = np.sum(np.square(est_ar_s - noisy_ar_s))
-        J.append(0.5 * r + lbda * np.sum(np.abs(est_i_s)))
-
-        if (verbose > 0):
-            print("global cost-function "
-                  "({0:03d}/{1:03d}): {2:.6f}".format(i+1, nb_iter, J[-1]))
-
-        # early stopping
-        if early_stopping:
-            if i > wind:
-                sub_wind_len = int(wind/2)
-                old_j = np.mean(J[:-sub_wind_len])
-                new_j = np.mean(J[-sub_wind_len:])
-                diff = (new_j - old_j) / (new_j + 1.0e-10)
-                if diff < tol:
-                    if verbose > 0:
-                        print("\n-----> early-stopping done at "
-                              "{0:03d}/{1:03d}, global cost-function"
-                              " = {2:.6f}".format(i, nb_iter, J[i]))
-                    break
-    if plotting:
-        plt.ioff()
-
-    # last BOLD deconvolution
-    H = ConvAndLinear(Integ, est_hrf, dim_in=N, dim_out=N)
-    v0 = np.zeros(N)
-    if L2_res:
-        grad = SquaredL2ResidualLinear(H, noisy_ar_s, v0.shape)
-    else:
-        grad = L2ResidualLinear(H, noisy_ar_s, v0.shape)
-
-    for j in range(nb_iter_deconv):
-        # deconvolution step
-        lbda = 1.0 / (2.0 * alpha)
-        prox = L1Norm(lbda)
-        x, _ = nesterov_forward_backward(
-                        grad=grad, prox=prox, v0=v0, nb_iter=999,
-                        early_stopping=True, verbose=verbose,
-                          )
-        # lambda optimization
-        alpha += mu * (grad.residual(x) - N * sigma**2)
-
-        # iterate update and saving
-        l_alpha.append(alpha)
-        if len(l_alpha) > wind:  # only hold the 'wind' last iterates
-            l_alpha = l_alpha[1:]
-
-        # early stopping
-        if early_stopping:
-            if j > 2:
-                sub_wind_len = int(wind/2)
-                old_iter = np.mean(l_alpha[:-sub_wind_len], axis=0)
-                new_iter = np.mean(l_alpha[-sub_wind_len:], axis=0)
-                crit_num = np.abs(new_iter - old_iter)
-                crit_deno = np.abs(new_iter)
-                diff = crit_num / (crit_deno + 1.0e-10)
-                if diff < 1.0e-2:
-                    if verbose > 1:
-                        print("\n-----> early-stopping "
-                              "done at {0:03d}/{1:03d}, "
-                              "cost function = {2:.6f}".format(j+1,
-                                                               nb_iter,
-                                                               J[j]))
-                    break
-
-    # deconvolution with larger number of iterations
-    prox = L1Norm(1.0 / (2.0 * alpha))
-    est_i_s, _ = nesterov_forward_backward(
-                    grad=grad, prox=prox, v0=v0, nb_iter=9999,
-                    early_stopping=True, verbose=verbose,
-                      )
-
-    est_ai_s = Integ.op(est_i_s)
-
-    r = np.sum(np.square(est_ar_s - noisy_ar_s))
-    g_bold = np.sum(np.abs(est_i_s))
-    J.append(0.5 * r + lbda * g_bold)
-
-    J = np.array(J)
-
-    return est_ar_s, est_ai_s, est_i_s, est_hrf, J
+    return est_ar_s, est_ai_s, est_i_s, est_hrf, d
