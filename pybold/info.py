@@ -31,10 +31,6 @@ _PYBOLD_INSTALL_MSG = "See {0} for installation information.".format(
 # This is a tuple to preserve order, so that dependencies are checked
 #   in some meaningful order (more => less 'core').
 REQUIRED_MODULE_METADATA = (
-    ('psutil', {
-        'min_version': '3.4.2',
-        'required_at_installation': True,
-        'install_info': _PYBOLD_INSTALL_MSG}),
     ('joblib', {
         'min_version': '0.10',
         'required_at_installation': True,

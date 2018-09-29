@@ -2,7 +2,6 @@
 """ This module gathers usefull usefull functions.
 """
 import itertools
-import psutil
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.linalg import norm as norm_2
@@ -47,16 +46,6 @@ def grid_search(func, param_grid, wrapper=None, n_jobs=1, verbose=0):
             param_grid[key] = [value]
     list_kwargs = [dict(zip(param_grid, x))
                    for x in itertools.product(*param_grid.values())]
-    # Run the reconstruction
-    if verbose > 0:
-        if n_jobs == -1:
-            n_jobs_used = psutil.cpu_count()
-        elif n_jobs == -2:
-            n_jobs_used = psutil.cpu_count() - 1
-        else:
-            n_jobs_used = n_jobs
-        print(("Running grid_search for {0} candidates"
-               " on {1} jobs").format(len(list_kwargs), n_jobs_used))
     res = Parallel(n_jobs=n_jobs, verbose=verbose)(
                    delayed(wrapper)(func, **kwargs)
                    for kwargs in list_kwargs)
