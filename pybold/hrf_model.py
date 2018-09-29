@@ -60,7 +60,7 @@ def il_hrf(hrf_logit_params, tr=1.0, dur=60.0, normalized_hrf=True):
 
 def basis3_hrf(hrf_basis3_params, tr=1.0, dur=60.0, normalized_hrf=True):
     """ Return the HRF as a linear combinaison of the canonical HRF from SPM,
-    its temporal derivative and the
+    its temporal derivative and the width parameter derivative.
     """
     alpha_1, alpha_2, alpha_3 = hrf_basis3_params
 
@@ -69,6 +69,24 @@ def basis3_hrf(hrf_basis3_params, tr=1.0, dur=60.0, normalized_hrf=True):
     hrf_3 = (hrf_1 - spm_hrf(delta=1.0, tr=tr, dur=dur, p_disp=1.01)[0]) / 0.01
 
     hrf = alpha_1*hrf_1 + alpha_2*hrf_2 + alpha_3*hrf_3
+
+    if normalized_hrf:
+        hrf /= (np.linalg.norm(hrf) + 1.0e-30)
+        hrf *= 10.0
+
+    return hrf, t_hrf
+
+
+def basis2_hrf(hrf_basis3_params, tr=1.0, dur=60.0, normalized_hrf=True):
+    """ Return the HRF as a linear combinaison of the canonical HRF from SPM
+    and its temporal derivative.
+    """
+    alpha_1, alpha_2 = hrf_basis3_params
+
+    hrf_1, t_hrf = spm_hrf(delta=1.0, tr=tr, dur=dur)
+    hrf_2 = np.append(0, hrf_1[1:] - hrf_1[:-1])
+
+    hrf = alpha_1*hrf_1 + alpha_2*hrf_2
 
     if normalized_hrf:
         hrf /= (np.linalg.norm(hrf) + 1.0e-30)
