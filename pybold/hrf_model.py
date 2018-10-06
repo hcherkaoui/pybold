@@ -44,16 +44,15 @@ def il_hrf(hrf_logit_params, tr=1.0, dur=60.0, normalized_hrf=True):
     """ Return the HRF from the specified inv. logit parameters.
     """
     alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3 = hrf_logit_params
-
     t_hrf = np.linspace(0, dur, float(dur)/tr)
-    il_1 = alpha_1 * expit((t_hrf-T1)/D1)
-    il_2 = alpha_2 * expit((t_hrf-T2)/D2)
-    il_3 = alpha_3 * expit((t_hrf-T3)/D3)
-    hrf = il_1 + il_2 + il_3
+    il_1 = expit((t_hrf-T1)/D1)
+    il_2 = expit((t_hrf-T2)/D2)
+    il_3 = expit((t_hrf-T3)/D3)
+
+    hrf = alpha_1 * il_1 + alpha_2 * il_2 + alpha_3 * il_3
 
     if normalized_hrf:
         hrf /= (np.linalg.norm(hrf) + 1.0e-30)
-        hrf *= 10.0
 
     return hrf, t_hrf, [il_1, il_2, il_3]
 

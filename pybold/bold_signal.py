@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
 import matplotlib.pyplot as plt
-from .hrf_model import spm_hrf, basis3_hrf, MIN_DELTA, MAX_DELTA
+from .hrf_model import spm_hrf, basis3_hrf, il_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear, Diff
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
@@ -159,6 +159,41 @@ def hrf_fit_err(hrf_params, ai_i_s, ar_s, hrf_cst_params, hrf_func, L2_res):
         return 0.5 * np.sum(np.square(ar_s - H.op(ai_i_s)))
 
 
+def logit_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
+    """ HRF scaled Gamma function estimation.
+
+    Parameters:
+    -----------
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float (default=1.0),
+        the TR.
+
+    dur : float (default=60.0),
+        number of seconds on which represent the HRF.
+
+    verbose : int (default=0)
+
+    Return:
+    ------
+    hrf : 1d np.ndarray,
+        the estimated HRF.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
+    """
+    # IL params: alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3
+    params_init = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
+    return _hrf_estimation(ai_i_s, ar_s,
+                           params_init=params_init,
+                           hrf_cst_params=[tr, dur], hrf_func=il_hrf,
+                           bounds=None, L2_res=True, verbose=verbose)
+
+
 def basis3_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     """ HRF scaled Gamma function estimation.
 
@@ -219,7 +254,7 @@ def scale_factor_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=1.0,
+    return _hrf_estimation(ai_i_s, ar_s, params_init=MAX_DELTA,
                            hrf_cst_params=[tr, dur], hrf_func=spm_hrf,
                            bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)],
                            L2_res=True, verbose=verbose)
@@ -238,7 +273,7 @@ def _hrf_estimation(ai_i_s, ar_s, params_init, hrf_cst_params, hrf_func,
                         bounds=bounds, approx_grad=True, callback=f_cost,
                         maxiter=999, pgtol=1.0e-12)
 
-    J = f_cost.J / f_cost.J[0]
+    J = f_cost.J
 
     hrf = hrf_func(hrf_params, *hrf_cst_params)[0]
 
@@ -469,8 +504,8 @@ def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None,
         # cost function
         r = np.sum(np.square(est_ar_s - noisy_ar_s))
         g = np.sum(np.abs(est_i_s))
-        d['J'].append((r + lbda * g) / j_0)
-        d['r'].append(r / r_0)
+        d['J'].append((r + lbda * g) / j_0 + 1.0e-30)
+        d['r'].append(r / r_0 + 1.0e-30)
         d['g'].append(g)
         if ai_s is not None:
             d['err_ai_s'].append(np.linalg.norm(est_ai_s-ai_s) / err_ai_s_0)
