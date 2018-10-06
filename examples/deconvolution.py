@@ -2,6 +2,11 @@
 """Simple deconvolution example.
 """
 import os
+is_travis = ('TRAVIS' in os.environ)
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -15,15 +20,6 @@ import numpy as np
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf
 from pybold.bold_signal import deconvolution
-
-
-is_travis = 'TRAVIS' in os.environ
-
-if is_travis:
-    import matplotlib
-    matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
 
 
 ###############################################################################

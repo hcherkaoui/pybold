@@ -2,10 +2,20 @@
 """Simple HRF estimation
 """
 import os
+is_travis = ('TRAVIS' in os.environ)
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ["NUMEXPR_NUM_THREADS"] = '1'
+os.environ["OMP_NUM_THREADS"] = '1'
+
 import pickle
 import numpy as np
 from datetime import datetime
-import matplotlib.pyplot as plt
 import seaborn as sns
 from joblib import Memory, Parallel, delayed
 from pybold.data import gen_rnd_bloc_bold

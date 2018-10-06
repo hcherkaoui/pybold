@@ -2,19 +2,16 @@
 """ Data generation example.
 """
 import os
+is_travis = ('TRAVIS' in os.environ)
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import numpy as np
 from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import basis3_hrf
 from pybold.utils import fwhm, tp
-
-
-is_travis = 'TRAVIS' in os.environ
-
-if is_travis:
-    import matplotlib
-    matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
 
 
 ###############################################################################

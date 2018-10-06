@@ -2,6 +2,11 @@
 """Simple HRF estimation
 """
 import os
+is_travis = ('TRAVIS' in os.environ)
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -17,15 +22,6 @@ from pybold.hrf_model import spm_hrf, basis3_hrf
 from pybold.bold_signal import (scale_factor_hrf_estimation,
                                 basis3_hrf_estimation)
 from pybold.utils import fwhm, tp
-
-
-is_travis = 'TRAVIS' in os.environ
-
-if is_travis:
-    import matplotlib
-    matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
 
 
 ###############################################################################

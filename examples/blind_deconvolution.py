@@ -2,6 +2,11 @@
 """ Blind deconvolution example.
 """
 import os
+is_travis = ('TRAVIS' in os.environ)
+if is_travis:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -17,15 +22,6 @@ from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import basis3_hrf, spm_hrf
 from pybold.utils import fwhm, inf_norm
 from pybold.bold_signal import blind_deconvolution
-
-
-is_travis = 'TRAVIS' in os.environ
-
-if is_travis:
-    import matplotlib
-    matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
 
 
 # 'lbda_bold': 0.270,  # SNR 1dB
