@@ -58,7 +58,7 @@ ax1.set_title("Convolved signals, TR={0}s".format(tr), fontsize=20)
 ax2 = fig.add_subplot(3, 1, 2)
 
 ax2.plot(t, ai_s, '-r', label="Block signal", lw=2)
-ax2.stem(t, i_s, '-g', label="Dirac source signal", lw=2)
+ax2.stem(t, i_s, '-g', label="Dirac source signal")
 
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
