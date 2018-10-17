@@ -4,7 +4,8 @@
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
 import matplotlib.pyplot as plt
-from .hrf_model import spm_hrf, basis3_hrf, il_hrf, MIN_DELTA, MAX_DELTA
+from .hrf_model import (spm_hrf, basis3_hrf, basis2_hrf, il_hrf, MIN_DELTA,
+                        MAX_DELTA)
 from .linear import DiscretInteg, Conv, ConvAndLinear, Diff
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
@@ -224,6 +225,39 @@ def basis3_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     return _hrf_estimation(ai_i_s, ar_s, params_init=np.array([0.5, 0.5, 0.1]),
                            hrf_cst_params=[tr, dur], hrf_func=basis3_hrf,
                            bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
+                           L2_res=True, verbose=verbose)
+
+
+def basis2_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
+    """ HRF scaled Gamma function estimation.
+
+    Parameters:
+    -----------
+    ai_i_s : 1d np.ndarray,
+        the source signal.
+
+    ar_s : 1d np.ndarray,
+        the convolved signal.
+
+    tr : float (default=1.0),
+        the TR.
+
+    dur : float (default=60.0),
+        number of seconds on which represent the HRF.
+
+    verbose : int (default=0)
+
+    Return:
+    ------
+    hrf : 1d np.ndarray,
+        the estimated HRF.
+
+    J : 1d np.ndarray,
+        the evolution of the cost-function.
+    """
+    return _hrf_estimation(ai_i_s, ar_s, params_init=np.array([0.5, 0.5]),
+                           hrf_cst_params=[tr, dur], hrf_func=basis2_hrf,
+                           bounds=[(0.0, 1.0), (0.0, 1.0)],
                            L2_res=True, verbose=verbose)
 
 
