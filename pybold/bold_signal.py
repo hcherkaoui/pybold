@@ -13,6 +13,13 @@ from .proximity import L1Norm
 from .utils import Tracker, mad_daub_noise_est, inf_norm, fwhm, tp
 
 
+# IL params: alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3
+IL_HRF_INIT = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
+BASIS3_HRF_INIT = np.array([0.5, 0.5, 0.1])
+BASIS2_HRF_INIT = np.array([0.5, 0.5])
+SCALED_HRF_INIT = MAX_DELTA
+
+
 def deconvolution(noisy_ar_s, tr, hrf, lbda=None, L2_res=False,
                   early_stopping=True, tol=1.0e-3, wind=2, nb_iter=1000,
                   verbose=0, ai_s=None):
@@ -187,11 +194,9 @@ def logit_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    # IL params: alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3
-    params_init = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
     return _hrf_estimation(ai_i_s, ar_s,
-                           params_init=params_init,
-                           hrf_cst_params=[tr, dur], hrf_func=il_hrf,
+                           params_init=IL_HRF_INIT,
+                           hrf_cst_params=[tr, dur, False], hrf_func=il_hrf,
                            bounds=None, L2_res=True, verbose=verbose)
 
 
@@ -222,9 +227,9 @@ def basis3_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=np.array([0.5, 0.5, 0.1]),
-                           hrf_cst_params=[tr, dur], hrf_func=basis3_hrf,
-                           bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
+    return _hrf_estimation(ai_i_s, ar_s, params_init=BASIS3_HRF_INIT,
+                           hrf_cst_params=[tr, dur, False], hrf_func=basis3_hrf,
+                           #bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
                            L2_res=True, verbose=verbose)
 
 
@@ -255,9 +260,9 @@ def basis2_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=np.array([0.5, 0.5]),
-                           hrf_cst_params=[tr, dur], hrf_func=basis2_hrf,
-                           bounds=[(0.0, 1.0), (0.0, 1.0)],
+    return _hrf_estimation(ai_i_s, ar_s, params_init=BASIS2_HRF_INIT,
+                           hrf_cst_params=[tr, dur, False], hrf_func=basis2_hrf,
+                           #bounds=[(0.0, 1.0), (0.0, 1.0)],
                            L2_res=True, verbose=verbose)
 
 
@@ -288,14 +293,14 @@ def scale_factor_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=MAX_DELTA,
-                           hrf_cst_params=[tr, dur], hrf_func=spm_hrf,
+    return _hrf_estimation(ai_i_s, ar_s, params_init=SCALED_HRF_INIT,
+                           hrf_cst_params=[tr, dur, False], hrf_func=spm_hrf,
                            bounds=[(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)],
                            L2_res=True, verbose=verbose)
 
 
 def _hrf_estimation(ai_i_s, ar_s, params_init, hrf_cst_params, hrf_func,
-                    bounds, L2_res=True, verbose=0):
+                    bounds=None, L2_res=True, verbose=0):
     """ Private function HRF estimation.
     """
     args = (ai_i_s, ar_s, hrf_cst_params, hrf_func, L2_res)
@@ -305,7 +310,7 @@ def _hrf_estimation(ai_i_s, ar_s, params_init, hrf_cst_params, hrf_func,
     hrf_params, f_value, _ = fmin_l_bfgs_b(
                         func=hrf_fit_err, x0=params_init, args=args,
                         bounds=bounds, approx_grad=True, callback=f_cost,
-                        maxiter=999, pgtol=1.0e-12)
+                        maxiter=99999, pgtol=1.0e-12)
 
     J = f_cost.J
 
