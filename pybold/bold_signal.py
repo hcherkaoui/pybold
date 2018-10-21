@@ -1,11 +1,12 @@
 # coding: utf-8
 """ Main module that provide the blind deconvolution function.
 """
+import warnings
 import numpy as np
-from scipy.optimize import fmin_l_bfgs_b
+from scipy.optimize import fmin_l_bfgs_b, check_grad
 import matplotlib.pyplot as plt
-from .hrf_model import (spm_hrf, basis3_hrf, basis2_hrf, il_hrf, MIN_DELTA,
-                        MAX_DELTA)
+from hrf_estimation.hrf import spmt, dspmt, ddspmt
+from .hrf_model import spm_hrf, basis3_hrf, basis2_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear, Diff
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
@@ -13,8 +14,6 @@ from .proximity import L1Norm
 from .utils import Tracker, mad_daub_noise_est, inf_norm, fwhm, tp
 
 
-# IL params: alpha_1, alpha_2, alpha_3, T1, T2, T3, D1, D2, D3
-IL_HRF_INIT = np.array([1.0, -1.2, 0.2, 5.0, 10.0, 15.0, 1.33, 2.5, 2.0])
 BASIS3_HRF_INIT = np.array([0.5, 0.5, 0.1])
 BASIS2_HRF_INIT = np.array([0.5, 0.5])
 SCALED_HRF_INIT = MAX_DELTA
@@ -167,22 +166,27 @@ def hrf_fit_err(hrf_params, ai_i_s, ar_s, hrf_cst_params, hrf_func, L2_res):
         return 0.5 * np.sum(np.square(ar_s - H.op(ai_i_s)))
 
 
-def logit_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
+def basis3_hrf_estimation(z, y, t_r=1.0, dur=30.0, bounds=False,
+                          pedregosa_hrf=True, verbose=0):
     """ HRF scaled Gamma function estimation.
 
     Parameters:
     -----------
-    ai_i_s : 1d np.ndarray,
-        the source signal.
+    z : 1d np.ndarray,
+        the source signal (blocks signal or events signal).
 
-    ar_s : 1d np.ndarray,
+    y : 1d np.ndarray,
         the convolved signal.
 
-    tr : float (default=1.0),
+    t_r : float (default=1.0),
         the TR.
 
     dur : float (default=60.0),
         number of seconds on which represent the HRF.
+
+    pedregosa_hrf : bool (default=True),
+        whether to use or not the F. Pedregosa functions to define the 3 HRFs
+        atoms.
 
     verbose : int (default=0)
 
@@ -194,43 +198,56 @@ def logit_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s,
-                           params_init=IL_HRF_INIT,
-                           hrf_cst_params=[tr, dur, False], hrf_func=il_hrf,
-                           bounds=None, L2_res=True, verbose=verbose)
+    if pedregosa_hrf:
+        t_hrf = np.linspace(0, dur, int(dur/t_r))
+        b_1 = spmt(t_hrf)
+        b_2 = dspmt(t_hrf)
+        b_3 = ddspmt(t_hrf)
+    else:
+        b_1 = spm_hrf(delta=1.0, t_r=t_r, dur=dur, normalized_hrf=False)[0]
+        b_2_ = spm_hrf(delta=1.0, t_r=t_r, dur=dur, onset=0.0,
+                       normalized_hrf=False)[0]
+        b_2__ = spm_hrf(delta=1.0, t_r=t_r, dur=dur, onset=t_r,
+                        normalized_hrf=False)[0]
+        b_2 = b_2_ - b_2__
+        b_3_ = spm_hrf(delta=1.0, t_r=t_r, dur=dur, p_disp=1.001,
+                       normalized_hrf=False)[0]
+        b_3 = (b_1 - b_3_) / 0.001
 
+    b_1_z = Conv(b_1, len(z)).op(z)
+    b_2_z = Conv(b_2, len(z)).op(z)
+    b_3_z = Conv(b_3, len(z)).op(z)
+    Bz = np.vstack([b_1_z, b_2_z, b_3_z]).T
 
-def basis3_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
-    """ HRF scaled Gamma function estimation.
+    def j(x, Bz, y):
+        """Cost function."""
+        return 0.5 * np.sum(np.square(Bz.dot(x) - y))
 
-    Parameters:
-    -----------
-    ai_i_s : 1d np.ndarray,
-        the source signal.
+    def grad_j(x, Bz, y):
+        """Gradient of the cost function."""
+        return Bz.T.dot((Bz.dot(x) - y))
 
-    ar_s : 1d np.ndarray,
-        the convolved signal.
+    cst_args = (Bz, y)
+    tracker = Tracker(j, cst_args, verbose)
+    if bounds:
+        bounds = [(1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)]
+    else:
+        bounds = None
+    err_grad = check_grad(j, grad_j, np.ones(3), *cst_args)
 
-    tr : float (default=1.0),
-        the TR.
+    if err_grad > 1.0e-4:
+        warnings.warn("Gradient error of {:.3E}".format(err_grad))
 
-    dur : float (default=60.0),
-        number of seconds on which represent the HRF.
+    x, f, d = fmin_l_bfgs_b(
+                        func=j, fprime=grad_j, x0=BASIS3_HRF_INIT,
+                        args=cst_args, bounds=bounds, callback=tracker,
+                        maxiter=500, maxfun=30000, pgtol=1.0e-6)
 
-    verbose : int (default=0)
+    J = np.array(tracker.J)
+    if len(J):
+        J /= (J[0] + 1.0e-30)
 
-    Return:
-    ------
-    hrf : 1d np.ndarray,
-        the estimated HRF.
-
-    J : 1d np.ndarray,
-        the evolution of the cost-function.
-    """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=BASIS3_HRF_INIT,
-                           hrf_cst_params=[tr, dur, False], hrf_func=basis3_hrf,
-                           #bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-                           L2_res=True, verbose=verbose)
+    return np.vstack([b_1, b_2, b_3]).T.dot(x), J
 
 
 def basis2_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
@@ -262,7 +279,6 @@ def basis2_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     """
     return _hrf_estimation(ai_i_s, ar_s, params_init=BASIS2_HRF_INIT,
                            hrf_cst_params=[tr, dur, False], hrf_func=basis2_hrf,
-                           #bounds=[(0.0, 1.0), (0.0, 1.0)],
                            L2_res=True, verbose=verbose)
 
 
