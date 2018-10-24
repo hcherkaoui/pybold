@@ -19,9 +19,9 @@ from datetime import datetime
 import pickle
 import numpy as np
 from pybold.data import gen_regular_bloc_bold
-from pybold.hrf_model import basis3_hrf, spm_hrf
+from pybold.hrf_model import basis3_hrf
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import blind_deconvolution
+from pybold.bold_signal import bd, BASIS3_HRF_INIT
 
 
 # 'lbda_bold': 0.270,  # SNR 1dB
@@ -52,13 +52,12 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 
 ###############################################################################
 # generate data
-hrf_dur = 30.
-dur = 10  # minutes
-TR = 2.0
-snr = 8.0
+hrf_dur = 20.
+dur = 5  # minutes
+TR = 0.75
+snr = 5.0
 
-delta_orig = 1.0
-orig_hrf, t_hrf = spm_hrf(delta_orig, tr=TR, dur=hrf_dur)
+orig_hrf, t_hrf = basis3_hrf(np.array([1.0, 0.5, -0.2]), t_r=TR, dur=hrf_dur)
 params = {'tr': TR,
           'dur': dur,
           'snr': snr,
@@ -69,29 +68,20 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-hrf_params_init = np.array([0.5, 0.5, 0.1])
-init_hrf, _ = basis3_hrf(hrf_basis3_params=hrf_params_init, tr=TR, dur=hrf_dur)
+nb_iter = 20 if not is_travis else 1
+theta_0 = np.array([1.0, 0.0, 0.0])
+init_hrf, _ = basis3_hrf(theta_0, t_r=TR, dur=hrf_dur)
 
-nb_iter = 50 if not is_travis else 1
-
-params = {'noisy_ar_s': noisy_ar_s,
-          'tr': TR,
-          'lbda': 5.0,
-          'L2_res': True,
-          'hrf_func': basis3_hrf,
-          'hrf_params': hrf_params_init,
-          'hrf_cst_params': [TR, hrf_dur],
-          'bounds': [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-          'dur_hrf': hrf_dur,
+params = {'y': noisy_ar_s,
+          't_r': TR,
+          'lbda': 2.0,
+          'theta_0': theta_0,
+          'hrf_dur': hrf_dur,
           'nb_iter': nb_iter,
           'verbose': 1,
-          'plotting': True,
-          'ai_s': ai_s,
-          'hrf': orig_hrf,
           }
-
 t0 = time.time()
-results = blind_deconvolution(**params)
+results = bd(**params)
 est_ar_s, est_ai_s, est_i_s, est_hrf, d = results
 delta_t = time.time() - t0
 
@@ -100,7 +90,7 @@ print("Duration: {0:.2f} s".format(delta_t))
 ###############################################################################
 # post-processing
 est_ar_s, est_ai_s, est_i_s = inf_norm([est_ar_s, est_ai_s, est_i_s])
-orig_hrf, init_hrf, est_hrf = inf_norm([orig_hrf, init_hrf, est_hrf])
+orig_hrf, est_hrf = inf_norm([orig_hrf, est_hrf])
 ar_s, ai_s = inf_norm([ar_s, ai_s])
 
 ###############################################################################
@@ -185,7 +175,7 @@ plt.plot(t_hrf, orig_hrf, '-b', label=label, lw=3)
 label = "Est. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, est_hrf))
 plt.plot(t_hrf, est_hrf, '-*g', label=label, lw=3)
 label = "Init. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, init_hrf))
-plt.plot(t_hrf, init_hrf, '--r', label=label, lw=3)
+plt.plot(t_hrf, init_hrf, '--k', label=label, lw=2)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.legend()
@@ -218,7 +208,7 @@ plt.ylabel("residual")
 plt.grid()
 plt.title("Evolution of the residual")
 
-filename = "residualpng"
+filename = "residual.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
@@ -231,35 +221,9 @@ plt.ylabel("L_1 norm")
 plt.grid()
 plt.title("Evolution of the L_1 norm")
 
-filename = "l1_norm"
+filename = "l1_norm.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
-# plot 6
-if 'err_ai_s' in d:
-    fig = plt.figure(6, figsize=(5, 5))
-    plt.plot(d['err_ai_s'], linewidth=6.0)
-    plt.xlabel("n iters")
-    plt.ylabel("blocs signal error")
-    plt.grid()
-    plt.title("Evolution of the blocs signal error")
-
-    filename = "err_ai_s.png"
-    filename = os.path.join(dirname, filename)
-    print("Saving plot under '{0}'".format(filename))
-    plt.savefig(filename)
-
-# plot 7
-if 'err_hrf' in d:
-    fig = plt.figure(7, figsize=(5, 5))
-    plt.plot(d['err_hrf'], linewidth=6.0)
-    plt.xlabel("n iters")
-    plt.ylabel("HRF error")
-    plt.grid()
-    plt.title("Evolution of the HRF error")
-
-    filename = "err_hrf.png"
-    filename = os.path.join(dirname, filename)
-    print("Saving plot under '{0}'".format(filename))
-    plt.savefig(filename)
+print("All results save under '{0}'".format(dirname))

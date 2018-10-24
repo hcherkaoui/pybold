@@ -14,8 +14,8 @@ from .proximity import L1Norm
 from .utils import Tracker, mad_daub_noise_est, inf_norm, fwhm, tp
 
 
-BASIS3_HRF_INIT = np.array([0.5, 0.5, 0.1])
-BASIS2_HRF_INIT = np.array([0.5, 0.5])
+BASIS3_HRF_INIT = np.array([1.0, 0.5, 0.1])
+BASIS2_HRF_INIT = np.array([1.0, 0.5])
 SCALED_HRF_INIT = MAX_DELTA
 
 
@@ -623,3 +623,112 @@ def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None,
     d['g'] = np.array(d['g'])
 
     return est_ar_s, est_ai_s, est_i_s, est_hrf, d
+
+
+def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
+       nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+    """ BOLD blind deconvolution function based on a scaled HRF model and an
+    blocs BOLD model.
+    """
+    N = len(y)
+
+    # initialization
+    theta_0 = BASIS3_HRF_INIT if theta_0 is None else theta_0
+    h, _ = basis3_hrf(theta_0, t_r=t_r, dur=hrf_dur, normalized_hrf=True,
+                      pedregosa_hrf=True)
+    if z_0 is None:
+        diff_z = np.zeros(N)
+        z = np.zeros(N)
+        x = np.zeros(N)
+    else:
+        diff_z = Diff().op(z_0)
+        z = z_0
+        x = Conv(h, N).op(z)
+
+    if bounds is None:
+        bounds = [(1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)]
+
+    d = {}
+    r_0 = np.sum(np.square(x - y))
+    d['r'] = [1.0]
+    g_0 = np.sum(np.abs(diff_z))
+    d['g'] = [g_0]
+    j_0 = r_0 + lbda * g_0
+    d['J'] = [1.0]
+    d['l_alpha'] = []
+
+    prox = L1Norm(lbda)
+    integ = DiscretInteg()
+
+    if (verbose > 0):
+        print("global cost-function "
+              "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, d['J'][-1]))
+
+    # main loop
+    for idx in range(nb_iter):
+
+        # deconvolution
+        H = ConvAndLinear(integ, h, dim_in=N, dim_out=N)
+        grad = L2ResidualLinear(H, y, diff_z.shape)
+        diff_z, _ = nesterov_forward_backward(
+                    grad=grad, prox=prox, v0=diff_z, nb_iter=5000,
+                    early_stopping=True, wind=8, tol=1.0e-12,
+                    verbose=0,
+                        )
+        z = integ.op(diff_z)
+
+        # hrf estimation
+        h, _ = basis3_hrf_estimation(z, y, t_r=t_r, dur=hrf_dur, bounds=True,
+                                     pedregosa_hrf=True, verbose=0)
+        x = Conv(h, N).op(z)
+
+        # cost function
+        r = np.sum(np.square(x - y))
+        g = np.sum(np.abs(diff_z))
+        d['J'].append((r + lbda * g) / j_0 + 1.0e-30)
+        d['r'].append(r / r_0 + 1.0e-30)
+        d['g'].append(g)
+
+        if (verbose > 0):
+            print("normalized global cost-function "
+                  "({0:03d}/{1:03d}): {2:.6f}".format(idx+1, nb_iter,
+                                                      d['J'][-1]))
+
+        # early stopping
+        if early_stopping:
+            if idx > wind:
+                sub_wind_len = int(wind/2)
+                old_j = np.mean(d['J'][:-sub_wind_len])
+                new_j = np.mean(d['J'][-sub_wind_len:])
+                diff = (new_j - old_j) / new_j
+                if diff < tol:
+                    if verbose > 0:
+                        print("\n-----> early-stopping done at "
+                              "{0:03d}/{1:03d}, global"
+                              " normalized cost-function = "
+                              "{2:.6f}".format(idx, nb_iter, d['J'][idx]))
+                    break
+
+    # last (long) deconvolution
+    H = ConvAndLinear(integ, h, dim_in=N, dim_out=N)
+    grad = L2ResidualLinear(H, y, diff_z.shape)
+    diff_z, _ = nesterov_forward_backward(
+                grad=grad, prox=prox, v0=diff_z, nb_iter=10000,
+                early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
+                    )
+
+    z = integ.op(diff_z)
+    x = Conv(h, N).op(z)
+
+    # cost function
+    r = np.sum(np.square(x - y))
+    g = np.sum(np.abs(diff_z))
+    d['J'].append((r + lbda * g) / j_0)
+    d['r'].append(r / r_0)
+    d['g'].append(g)
+
+    d['J'] = np.array(d['J'])
+    d['r'] = np.array(d['r'])
+    d['g'] = np.array(d['g'])
+
+    return x, z, diff_z, h, d
