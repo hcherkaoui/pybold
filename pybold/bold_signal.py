@@ -6,7 +6,7 @@ import numpy as np
 from scipy.optimize import fmin_l_bfgs_b, check_grad
 import matplotlib.pyplot as plt
 from hrf_estimation.hrf import spmt, dspmt, ddspmt
-from .hrf_model import spm_hrf, basis3_hrf, basis2_hrf, MIN_DELTA, MAX_DELTA
+from .hrf_model import spm_hrf, basis2_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, Conv, ConvAndLinear, Diff
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
@@ -119,8 +119,7 @@ def deconvolution(noisy_ar_s, tr, hrf, lbda=None, L2_res=False,
                       " lbda = {1:0.6f},"
                       " l1-norm = {2:0.6f},"
                       " N*sigma**2 = {3:0.6f},"
-                      " res = {4:0.6f}".format(i+1, lbda, g,
-                                                           N*sigma**2, r))
+                      " res = {4:0.6f}".format(i+1, lbda, g, N*sigma**2, r))
 
             # early stopping
             if early_stopping:
@@ -277,9 +276,10 @@ def basis2_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
     J : 1d np.ndarray,
         the evolution of the cost-function.
     """
-    return _hrf_estimation(ai_i_s, ar_s, params_init=BASIS2_HRF_INIT,
-                           hrf_cst_params=[tr, dur, False], hrf_func=basis2_hrf,
-                           L2_res=True, verbose=verbose)
+    return _hrf_estimation(
+                    ai_i_s, ar_s, params_init=BASIS2_HRF_INIT,
+                    hrf_cst_params=[tr, dur, False], hrf_func=basis2_hrf,
+                    L2_res=True, verbose=verbose)
 
 
 def scale_factor_hrf_estimation(ai_i_s, ar_s, tr=1.0, dur=60.0, verbose=0):
@@ -335,7 +335,7 @@ def _hrf_estimation(ai_i_s, ar_s, params_init, hrf_cst_params, hrf_func,
     return hrf, J
 
 
-def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None,
+def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None, #noqa
                         hrf_func=None, hrf_params=None, hrf_cst_params=None,
                         bounds=None, init_i_s=None, dur_hrf=60.0, L2_res=True,
                         nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24,
@@ -626,16 +626,17 @@ def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None,
 
 
 def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
-       nb_iter=50, early_stopping=False, wind=24, tol=1.0e-24, verbose=0):
+       nb_iter=50, deconv_first=True, early_stopping=False, wind=24,
+       tol=1.0e-24, verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
     N = len(y)
 
     # initialization
-    theta_0 = BASIS3_HRF_INIT if theta_0 is None else theta_0
-    h, _ = basis3_hrf(theta_0, t_r=t_r, dur=hrf_dur, normalized_hrf=True,
-                      pedregosa_hrf=True)
+    theta = MAX_DELTA if theta_0 is None else theta_0
+    h, _ = spm_hrf(theta, t_r=t_r, dur=hrf_dur, normalized_hrf=False)
+
     if z_0 is None:
         diff_z = np.zeros(N)
         z = np.zeros(N)
@@ -646,7 +647,7 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
         x = Conv(h, N).op(z)
 
     if bounds is None:
-        bounds = [(1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)]
+        bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
 
     d = {}
     r_0 = np.sum(np.square(x - y))
@@ -678,8 +679,13 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
         z = integ.op(diff_z)
 
         # hrf estimation
-        h, _ = basis3_hrf_estimation(z, y, t_r=t_r, dur=hrf_dur, bounds=True,
-                                     pedregosa_hrf=True, verbose=0)
+        args = (z, y, [t_r, hrf_dur, False], spm_hrf, False)
+
+        theta, _, _ = fmin_l_bfgs_b(
+                            func=hrf_fit_err, x0=theta, args=args,
+                            bounds=bounds, approx_grad=True, maxiter=999,
+                            pgtol=1.0e-12)
+        h, _ = spm_hrf(theta, t_r, hrf_dur, False)
         x = Conv(h, N).op(z)
 
         # cost function
