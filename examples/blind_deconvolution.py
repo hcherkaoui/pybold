@@ -19,17 +19,10 @@ from datetime import datetime
 import pickle
 import numpy as np
 from pybold.data import gen_regular_bloc_bold
-from pybold.hrf_model import basis3_hrf
+from pybold.hrf_model import spm_hrf, MAX_DELTA
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import bd, BASIS3_HRF_INIT
+from pybold.bold_signal import bd
 
-
-# 'lbda_bold': 0.270,  # SNR 1dB
-# 'lbda_bold': 0.140,  # SNR 5dB
-# 'lbda_bold': 0.110,  # SNR 8dB
-# 'lbda_bold': 0.100,  # SNR 10dB
-# 'lbda_bold': 0.055,  # SNR 20dB
-# 'lbda_bold': 0.018,  # SNR 100dB
 
 ###############################################################################
 # results management
@@ -57,7 +50,7 @@ dur = 5  # minutes
 TR = 0.75
 snr = 5.0
 
-orig_hrf, t_hrf = basis3_hrf(np.array([1.0, 0.5, -0.2]), t_r=TR, dur=hrf_dur)
+orig_hrf, t_hrf = spm_hrf(1.0, t_r=TR, dur=hrf_dur)
 params = {'tr': TR,
           'dur': dur,
           'snr': snr,
@@ -68,16 +61,16 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-nb_iter = 20 if not is_travis else 1
-theta_0 = np.array([1.0, 0.0, 0.0])
-init_hrf, _ = basis3_hrf(theta_0, t_r=TR, dur=hrf_dur)
+nb_iter = 100 if not is_travis else 1
+init_hrf, _ = spm_hrf(MAX_DELTA, t_r=TR, dur=hrf_dur)
 
 params = {'y': noisy_ar_s,
           't_r': TR,
           'lbda': 2.0,
-          'theta_0': theta_0,
+          'theta_0': MAX_DELTA,
           'hrf_dur': hrf_dur,
           'nb_iter': nb_iter,
+          'tol': 1.0e-2,
           'verbose': 1,
           }
 t0 = time.time()
@@ -89,7 +82,7 @@ print("Duration: {0:.2f} s".format(delta_t))
 
 ###############################################################################
 # post-processing
-est_ar_s, est_ai_s, est_i_s = inf_norm([est_ar_s, est_ai_s, est_i_s])
+noisy_ar_s, est_ar_s, est_ai_s, est_i_s = inf_norm([noisy_ar_s, est_ar_s, est_ai_s, est_i_s])
 orig_hrf, est_hrf = inf_norm([orig_hrf, est_hrf])
 ar_s, ai_s = inf_norm([ar_s, ai_s])
 

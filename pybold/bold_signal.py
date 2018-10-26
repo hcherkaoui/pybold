@@ -11,7 +11,9 @@ from .linear import DiscretInteg, Conv, ConvAndLinear, Diff
 from .gradient import SquaredL2ResidualLinear, L2ResidualLinear
 from .solvers import nesterov_forward_backward
 from .proximity import L1Norm
-from .utils import Tracker, mad_daub_noise_est, inf_norm, fwhm, tp
+from .convolution import spectral_convolve
+from .utils import (Tracker, mad_daub_noise_est, inf_norm, fwhm, tp,
+                    spectral_radius_est)
 
 
 BASIS3_HRF_INIT = np.array([1.0, 0.5, 0.1])
@@ -625,26 +627,29 @@ def blind_deconvolution(noisy_ar_s, tr, lbda=1.0, sigma=None, #noqa
     return est_ar_s, est_ai_s, est_i_s, est_hrf, d
 
 
-def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
-       nb_iter=50, deconv_first=True, early_stopping=False, wind=24,
-       tol=1.0e-24, verbose=0):
+# TODO: speed up those calls:
+# ConvAndLinear
+# hrf_fit_err
+# spectral_radius_est
+# spectral_convolve
+def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=20.0,  #noqa
+       bounds=None, nb_iter=100, nb_sub_iter=1000, nb_last_iter=10000,
+       early_stopping=False, wind=4, tol=1.0e-12, verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
-    N = len(y)
-
     # initialization
     theta = MAX_DELTA if theta_0 is None else theta_0
     h, _ = spm_hrf(theta, t_r=t_r, dur=hrf_dur, normalized_hrf=False)
 
     if z_0 is None:
-        diff_z = np.zeros(N)
-        z = np.zeros(N)
-        x = np.zeros(N)
+        diff_z = np.zeros(len(y))
+        z = np.zeros(len(y))
+        x = np.zeros(len(y))
     else:
-        diff_z = Diff().op(z_0)
+        diff_z = np.append(0, z_0[1:] - z_0[:-1])
         z = z_0
-        x = Conv(h, N).op(z)
+        x = spectral_convolve(h, z)
 
     if bounds is None:
         bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
@@ -658,9 +663,6 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
     d['J'] = [1.0]
     d['l_alpha'] = []
 
-    prox = L1Norm(lbda)
-    integ = DiscretInteg()
-
     if (verbose > 0):
         print("global cost-function "
               "({0:03d}/{1:03d}): {2:.6f}".format(0, nb_iter, d['J'][-1]))
@@ -669,14 +671,42 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
     for idx in range(nb_iter):
 
         # deconvolution
-        H = ConvAndLinear(integ, h, dim_in=N, dim_out=N)
-        grad = L2ResidualLinear(H, y, diff_z.shape)
-        diff_z, _ = nesterov_forward_backward(
-                    grad=grad, prox=prox, v0=diff_z, nb_iter=5000,
-                    early_stopping=True, wind=8, tol=1.0e-12,
-                    verbose=0,
-                        )
-        z = integ.op(diff_z)
+        H = ConvAndLinear(DiscretInteg(), h, dim_in=len(y), dim_out=len(y))
+        H_adj_y = H.adj(y)
+        grad_lipschitz_cst = spectral_radius_est(H, diff_z.shape)
+        step = 1.0 / grad_lipschitz_cst
+        th = lbda / grad_lipschitz_cst
+        diff_z_old = np.zeros(len(y))
+        xx = []
+        t = t_old = 1
+
+        for j in range(nb_sub_iter):
+
+            diff_z -= step * (H.adj(H.op(diff_z)) - H_adj_y)
+            diff_z = np.sign(diff_z) * np.maximum(np.abs(diff_z) - th, 0)
+
+            t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
+            diff_z = diff_z + (t_old-1)/t * (diff_z - diff_z_old)
+
+            t_old = t
+            diff_z_old = diff_z
+
+            xx.append(diff_z_old)
+            if len(xx) > wind:
+                xx = xx[1:]
+
+            if early_stopping:
+                if j > wind:
+                    sub_wind_len = int(wind/2)
+                    old_iter = np.mean(xx[:-sub_wind_len], axis=0)
+                    new_iter = np.mean(xx[-sub_wind_len:], axis=0)
+                    crit_num = np.linalg.norm(new_iter - old_iter)
+                    crit_deno = np.linalg.norm(new_iter)
+                    diff = crit_num / (crit_deno + 1.0e-10)
+                    if diff < tol:
+                        break
+
+        z = np.cumsum(diff_z)
 
         # hrf estimation
         args = (z, y, [t_r, hrf_dur, False], spm_hrf, False)
@@ -686,7 +716,7 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
                             bounds=bounds, approx_grad=True, maxiter=999,
                             pgtol=1.0e-12)
         h, _ = spm_hrf(theta, t_r, hrf_dur, False)
-        x = Conv(h, N).op(z)
+        x = spectral_convolve(h, z)
 
         # cost function
         r = np.sum(np.square(x - y))
@@ -716,15 +746,43 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=60.0, bounds=None,
                     break
 
     # last (long) deconvolution
-    H = ConvAndLinear(integ, h, dim_in=N, dim_out=N)
-    grad = L2ResidualLinear(H, y, diff_z.shape)
-    diff_z, _ = nesterov_forward_backward(
-                grad=grad, prox=prox, v0=diff_z, nb_iter=10000,
-                early_stopping=True, wind=8, tol=1.0e-12, verbose=verbose,
-                    )
+    H = ConvAndLinear(DiscretInteg(), h, dim_in=len(y), dim_out=len(y))
+    H_adj_y = H.adj(y)
+    grad_lipschitz_cst = spectral_radius_est(H, diff_z.shape)
+    step = 1.0 / grad_lipschitz_cst
+    th = lbda / grad_lipschitz_cst
+    diff_z_old = np.zeros(len(y))
+    xx = []
+    t = t_old = 1
 
-    z = integ.op(diff_z)
-    x = Conv(h, N).op(z)
+    for j in range(nb_last_iter):
+
+        diff_z -= step * (H.adj(H.op(diff_z)) - H_adj_y)
+        diff_z = np.sign(diff_z) * np.maximum(np.abs(diff_z) - th, 0)
+
+        t = 0.5 * (1.0 + np.sqrt(1 + 4*t_old**2))
+        diff_z = diff_z + (t_old-1)/t * (diff_z - diff_z_old)
+
+        t_old = t
+        diff_z_old = diff_z
+
+        xx.append(diff_z_old)
+        if len(xx) > wind:
+            xx = xx[1:]
+
+        if early_stopping:
+            if j > wind:
+                sub_wind_len = int(wind/2)
+                old_iter = np.mean(xx[:-sub_wind_len], axis=0)
+                new_iter = np.mean(xx[-sub_wind_len:], axis=0)
+                crit_num = np.linalg.norm(new_iter - old_iter)
+                crit_deno = np.linalg.norm(new_iter)
+                diff = crit_num / (crit_deno + 1.0e-10)
+                if diff < tol:
+                    break
+
+    z = np.cumsum(diff_z)
+    x = spectral_convolve(h, z)
 
     # cost function
     r = np.sum(np.square(x - y))
