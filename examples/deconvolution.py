@@ -44,13 +44,13 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 # generate data
 hrf_dur = 30.
 dur = 10  # minutes
-tr = 1.0
+TR = 1.0
 snr = 1.0
 
 # True HRF
 true_hrf_delta = 1.5
-orig_hrf, t_hrf = spm_hrf(tr=tr, delta=true_hrf_delta, dur=hrf_dur)
-params = {'tr': tr,
+orig_hrf, t_hrf = spm_hrf(t_r=TR, delta=true_hrf_delta, dur=hrf_dur)
+params = {'tr': TR,
           'dur': dur,
           'snr': snr,
           'hrf': orig_hrf,
@@ -62,7 +62,7 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
 # deconvolve the signal
 nb_iter = 500 if not is_travis else 1
 params = {'noisy_ar_s': noisy_ar_s,
-          'tr': tr,
+          'tr': TR,
           'hrf': orig_hrf,
           'lbda': None,
           'L2_res': True,
@@ -98,7 +98,7 @@ ax0.axhline(0.0, c='k')
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
 ax0.legend()
-ax0.set_title("Input noisy BOLD signals, TR={0}s".format(tr), fontsize=15)
+ax0.set_title("Input noisy BOLD signals, TR={0}s".format(TR), fontsize=15)
 
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
@@ -110,7 +110,7 @@ ax1.axhline(0.0, c='k')
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
 ax1.legend()
-ax1.set_title("Estimated convolved signals, TR={0}s".format(tr),
+ax1.set_title("Estimated convolved signals, TR={0}s".format(TR),
               fontsize=15)
 
 # axis 2
@@ -124,7 +124,7 @@ ax2.axhline(0.0, c='k')
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
 ax2.legend()
-ax2.set_title("Estimated signals, TR={0}s".format(tr), fontsize=15)
+ax2.set_title("Estimated signals, TR={0}s".format(TR), fontsize=15)
 
 plt.tight_layout()
 
