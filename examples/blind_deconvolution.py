@@ -21,7 +21,7 @@ import numpy as np
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf, MAX_DELTA
 from pybold.utils import fwhm, inf_norm
-from pybold.bold_signal import bd
+from pybold.signal import bd
 
 
 ###############################################################################
@@ -46,9 +46,9 @@ shutil.copyfile(__file__, os.path.join(dirname, __file__))
 ###############################################################################
 # generate data
 hrf_dur = 20.
-dur = 5  # minutes
+dur = 3  # minutes
 TR = 0.75
-snr = 5.0
+snr = 1.0
 
 orig_hrf, t_hrf = spm_hrf(1.0, t_r=TR, dur=hrf_dur)
 params = {'tr': TR,
@@ -61,15 +61,17 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-nb_iter = 100 if not is_travis else 1
+nb_iter = 750 if not is_travis else 1
 init_hrf, _ = spm_hrf(MAX_DELTA, t_r=TR, dur=hrf_dur)
 
 params = {'y': noisy_ar_s,
           't_r': TR,
-          'lbda': 2.0,
+          'lbda': 1.0,
           'theta_0': MAX_DELTA,
           'hrf_dur': hrf_dur,
           'nb_iter': nb_iter,
+          'nb_sub_iter': 500,
+          'nb_last_iter': 10000,
           'tol': 1.0e-2,
           'verbose': 1,
           }

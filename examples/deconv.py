@@ -19,7 +19,7 @@ from datetime import datetime
 import numpy as np
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.bold_signal import deconvolution
+from pybold.signal import deconv
 
 
 ###############################################################################
@@ -60,20 +60,19 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # deconvolve the signal
-nb_iter = 500 if not is_travis else 1
-params = {'noisy_ar_s': noisy_ar_s,
-          'tr': TR,
+nb_iter = 100 if not is_travis else 1
+params = {'y': noisy_ar_s,
+          't_r': TR,
           'hrf': orig_hrf,
           'lbda': None,
-          'L2_res': True,
           'nb_iter': nb_iter,
           'verbose': 1,
           }
 
 t0 = time.time()
-est_ar_s, est_ai_s, est_i_s, J, R, G = deconvolution(**params)
+est_ar_s, est_ai_s, est_i_s, J, R, G = deconv(**params)
 delta_t = np.round(time.time() - t0, 3)
-runtimes = np.linspace(0, delta_t, len(R))
+runtimes = np.linspace(0, delta_t, len(J))
 
 print("Duration: {0} s".format(delta_t))
 

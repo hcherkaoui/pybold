@@ -17,10 +17,9 @@ import shutil
 import time
 from datetime import datetime
 import numpy as np
-from pybold.data import gen_rnd_bloc_bold, add_gaussian_noise
-from pybold.hrf_model import basis3_hrf
-from pybold.linear import Conv
-from pybold.bold_signal import basis3_hrf_estimation as hrf3_he
+from pybold.data import gen_rnd_bloc_bold
+from pybold.hrf_model import spm_hrf
+from pybold.signal import hrf_estim as he
 from pybold.utils import inf_norm
 
 
@@ -45,8 +44,7 @@ TR = 0.75
 snr = 5.0
 random_state = 99
 
-orig_hrf, t_hrf = basis3_hrf(np.array([0.6, 0.5, 0.2]), t_r=TR, dur=hrf_dur,
-                             normalized_hrf=False)
+orig_hrf, t_hrf = spm_hrf(1.0, t_r=TR, dur=hrf_dur, normalized_hrf=False)
 params = {'dur': dur, 'tr': TR, 'hrf': orig_hrf, 'nb_events': 2,
           'avg_dur': 12, 'std_dur': 0.0, 'overlapping': False, 'snr': snr,
           'random_state': random_state}
@@ -56,7 +54,7 @@ y_tilde, y, z, _, t, _, _ = gen_rnd_bloc_bold(**params)
 # HRF estimation
 params = {'z': z, 'y': y_tilde, 't_r': TR, 'dur': hrf_dur, 'verbose': 3}
 t0 = time.time()
-est_hrf, J = hrf3_he(**params)
+est_hrf, J = he(**params)
 delta_t = time.time() - t0
 runtimes = np.linspace(0.0, delta_t, len(J))
 

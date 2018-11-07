@@ -21,7 +21,7 @@ snr = 1.0
 dur = 4  # minutes
 hrf_dur = 30.0
 hrf_params = np.array([0.7, 0.7, 0.05])
-hrf, t_hrf = basis3_hrf(hrf_basis3_params=hrf_params, tr=tr, dur=hrf_dur)
+hrf, t_hrf = basis3_hrf(hrf_basis3_params=hrf_params, t_r=tr, dur=hrf_dur)
 hrf_fwhm = fwhm(t_hrf, hrf)
 hrf_tp = tp(t_hrf, hrf)
 params = {'dur': dur,
