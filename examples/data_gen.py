@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 from pybold.data import gen_rnd_bloc_bold
-from pybold.hrf_model import basis3_hrf
+from pybold.hrf_model import spm_hrf
 from pybold.utils import fwhm, tp
 
 
@@ -20,8 +20,7 @@ tr = 1.0
 snr = 1.0
 dur = 4  # minutes
 hrf_dur = 30.0
-hrf_params = np.array([0.7, 0.7, 0.05])
-hrf, t_hrf = basis3_hrf(hrf_basis3_params=hrf_params, t_r=tr, dur=hrf_dur)
+hrf, t_hrf = spm_hrf(1.0, t_r=tr, dur=hrf_dur)
 hrf_fwhm = fwhm(t_hrf, hrf)
 hrf_tp = tp(t_hrf, hrf)
 params = {'dur': dur,

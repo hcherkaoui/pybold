@@ -17,7 +17,7 @@ script:
   - nosetests --with-coverage
   # run examples
   - cd examples/
-  - python data_generation.py
+  - python data_gen.py
   - python hrf_estim.py
-  - python deconvolution.py
-  - python blind_deconvolution.py
+  - python deconv.py
+  - python blind_deconv.py
