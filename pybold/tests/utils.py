@@ -22,7 +22,7 @@ class YieldData():
             onset_event = int(0.20 * dur * 60 / tr)
             i_s = np.zeros_like(t)
             i_s[onset_event] = 1
-            hrf_params = {'tr': tr,
+            hrf_params = {'t_r': tr,
                           'delta': delta,
                           }
             hrf, _ = spm_hrf(**hrf_params)
@@ -52,7 +52,7 @@ class YieldData():
                            'overlapping': True,
                            'random_state': random_state,
                            }
-            hrf_params = {'tr': tr,
+            hrf_params = {'t_r': tr,
                           'delta': delta,
                           }
             ai_s, _, _ = gen_rnd_ai_s(**ai_s_params)

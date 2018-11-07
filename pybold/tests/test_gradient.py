@@ -40,14 +40,14 @@ class TestGradient(unittest.TestCase):
         for params in itertools.product(*listparams):
             random_state, tr, delta = params
             ai_s_params = {'dur': dur,
-                           'tr': tr,
+                           't_r': tr,
                            'nb_events': 4,
                            'avg_dur': 1,
                            'std_dur': 5,
                            'overlapping': False,
                            'random_state': random_state,
                            }
-            hrf_params = {'tr': tr,
+            hrf_params = {'t_r': tr,
                           'delta': delta,
                           }
 

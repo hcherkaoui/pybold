@@ -65,7 +65,7 @@ class TestDataGeneration(unittest.TestCase):
         for params in itertools.product(*listparams):
             random_state, snr, tr, dur_orig, delta = params
             nb_events = int(dur_orig/2)
-            hrf, _ = spm_hrf(delta=delta, tr=tr)
+            hrf, _ = spm_hrf(delta=delta, t_r=tr)
             params = {'dur': dur_orig,
                       'tr': tr,
                       'hrf': hrf,
