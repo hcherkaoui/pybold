@@ -18,6 +18,6 @@ script:
   # run examples
   - cd examples/
   - python data_generation.py
-  - python hrf_estimation.py
+  - python hrf_estim.py
   - python deconvolution.py
   - python blind_deconvolution.py
