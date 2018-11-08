@@ -2,7 +2,7 @@
 
 |Travis|_ |Python27|_ |Python35|_ 
 
-.. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=hcherkaoui/dev
+.. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=master
 .. _Travis: https://travis-ci.com/CherkaouiHamza/pybold
    
 .. |Python27| image:: https://img.shields.io/badge/python-2.7-blue.svg
@@ -12,8 +12,8 @@
 .. _Python35: https://badge.fury.io/py/scikit-learn
 
 
-pyBOLD - dev
-============
+pyBOLD
+======
 
 pyBOLD is a package module for fast and easy BOLD signal processing analysis.
 
@@ -29,7 +29,6 @@ Dependencies
 
 The required dependencies to use the software are:
 
-* Psutil
 * Joblib
 * Numpy
 * Scipy
@@ -55,7 +54,7 @@ To run all the tests, run the following command from the pybold directory::
 
 To run the examples, go to the directories examples and run a script, e.g.::
 
-    python deconvolution.py
+    python deconv.py
 
 
 Development
