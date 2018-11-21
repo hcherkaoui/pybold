@@ -22,7 +22,7 @@ def spm_hrf(delta, t_r=1.0, dur=60.0, normalized_hrf=True, dt=0.001, p_delay=6,
 
     # dur: the (continious) time segment on which we represent all
     # the HRF. Can cut the HRF too early. The time scale is second.
-    t = np.linspace(0, dur, float(dur) / dt) - float(onset) / dt
+    t = np.linspace(0, dur, int(float(dur) / dt)) - float(onset) / dt
     scaled_time_stamps = delta * t
 
     peak = gamma.pdf(scaled_time_stamps, p_delay/p_disp, loc=dt/p_disp)
