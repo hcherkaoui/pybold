@@ -1,10 +1,13 @@
 .. -*- mode: rst -*-
 
-|Travis|_ |Python27|_ |Python35|_ 
+|Travis|_ |Codecov|_ |Python27|_ |Python35|_ 
 
 .. |Travis| image:: https://travis-ci.com/CherkaouiHamza/pybold.svg?token=tt8GRtf9hkYvmyTMbYvJ&branch=master
 .. _Travis: https://travis-ci.com/CherkaouiHamza/pybold
-   
+
+.. |Codecov| image:: https://codecov.io/gh/CherkaouiHamza/pybold/branch/master/graph/badge.svg
+.. _Codecov: https://codecov.io/gh/CherkaouiHamza/pybold
+
 .. |Python27| image:: https://img.shields.io/badge/python-2.7-blue.svg
 .. _Python27: https://badge.fury.io/py/scikit-learn
 
