@@ -29,6 +29,7 @@ Dependencies
 
 The required dependencies to use the software are:
 
+* Numba
 * Joblib
 * Numpy
 * Scipy
