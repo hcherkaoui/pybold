@@ -61,7 +61,7 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, _ = gen_regular_bloc_bold(**params)
 
 ###############################################################################
 # blind deconvolution
-nb_iter = 750 if not is_travis else 1
+nb_iter = 500 if not is_travis else 1
 init_hrf, _ = spm_hrf(MAX_DELTA, t_r=TR, dur=hrf_dur)
 
 params = {'y': noisy_ar_s,
@@ -70,7 +70,7 @@ params = {'y': noisy_ar_s,
           'theta_0': MAX_DELTA,
           'hrf_dur': hrf_dur,
           'nb_iter': nb_iter,
-          'nb_sub_iter': 500,
+          'nb_sub_iter': 1000,
           'nb_last_iter': 10000,
           'tol': 1.0e-2,
           'verbose': 1,
