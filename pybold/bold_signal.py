@@ -2,17 +2,16 @@
 """ Main module that provide the blind deconvolution function.
 """
 import numpy as np
-from numba import jit
+import numba
 from scipy.optimize import fmin_l_bfgs_b
-from scipy.stats import gamma
 from .hrf_model import spm_hrf, MIN_DELTA, MAX_DELTA
 from .linear import DiscretInteg, ConvAndLinear
 from .convolution import spectral_convolve, toeplitz_from_kernel
 from .utils import Tracker, mad_daub_noise_est, spectral_radius_est
 
 
-def deconv(y, t_r, hrf, lbda=None, early_stopping=True, tol=1.0e-6, wind=6,  #noqa
-           nb_iter=1000, nb_sub_iter=1000, verbose=0):
+def deconv(y, t_r, hrf, lbda=None, early_stopping=True, tol=1.0e-6,  # noqa
+           wind=6, nb_iter=1000, nb_sub_iter=1000, verbose=0):
     """ Deconvolve the given BOLD signal given an HRF convolution kernel.
     The source signal is supposed to be a bloc signal.
 
@@ -230,7 +229,7 @@ def hrf_estim(z, y, t_r, dur, verbose=0):
     bounds = [(MIN_DELTA + 1.0e-1, MAX_DELTA - 1.0e-1)]
     f_cost = Tracker(hrf_fit_err, args, verbose)
 
-    theta, f_value, _ = fmin_l_bfgs_b(
+    theta, _, _ = fmin_l_bfgs_b(
                         func=hrf_fit_err, x0=MAX_DELTA, args=args,
                         bounds=bounds, approx_grad=True, callback=f_cost,
                         maxiter=99999, pgtol=1.0e-12)
@@ -240,7 +239,10 @@ def hrf_estim(z, y, t_r, dur, verbose=0):
     return h, J
 
 
-@jit(nopython=True)
+@numba.jit((numba.float64[:], numba.float64[:], numba.float64[:, :],
+            numba.float64, numba.int64, numba.boolean, numba.int64,
+            numba.float64),
+           cache=True, nopython=True)
 def _loops_deconv(y, diff_z, H, lbda, nb_iter, early_stopping, wind, tol):
     """ Main loop for deconvolution.
     """
@@ -276,12 +278,15 @@ def _loops_deconv(y, diff_z, H, lbda, nb_iter, early_stopping, wind, tol):
     return diff_z
 
 
-def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=20.0,  #noqa
+def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=20.0,  # noqa
        bounds=None, nb_iter=100, nb_sub_iter=1000, nb_last_iter=10000,
        print_period=50, early_stopping=False, wind=4, tol=1.0e-12, verbose=0):
     """ BOLD blind deconvolution function based on a scaled HRF model and an
     blocs BOLD model.
     """
+    # force cast for Numba
+    y = y.astype(np.float64)
+
     # initialization
     theta = MAX_DELTA if theta_0 is None else theta_0
     h, _ = spm_hrf(theta, t_r, hrf_dur, False)
@@ -336,7 +341,7 @@ def bd(y, t_r, lbda=1.0, theta_0=None, z_0=None, hrf_dur=20.0,  #noqa
         d['r'].append(r / r_0 + 1.0e-30)
         d['g'].append(g)
 
-        if (verbose > 0) and ((idx+1)%print_period == 0):
+        if (verbose > 0) and ((idx+1) % print_period == 0):
             print("normalized global cost-function "
                   "({0:03d}/{1:03d}): {2:.6f}".format(idx+1, nb_iter,
                                                       d['J'][-1]))
