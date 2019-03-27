@@ -21,7 +21,7 @@ import numpy as np
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf, MAX_DELTA
 from pybold.utils import fwhm, inf_norm
-from pybold.signal import bd
+from pybold.bold_signal import bd
 
 
 ###############################################################################
@@ -112,30 +112,28 @@ with open(filename, "wb") as pfile:
 print("Results directory: '{0}'".format(dirname))
 
 # plot 1
-fig = plt.figure(1, figsize=(20, 10))
+fig = plt.figure(1, figsize=(15, 7))
 
 # axis 1
 ax0 = fig.add_subplot(3, 1, 1)
 label = "Noisy activation related signal, snr={0}dB".format(snr)
-ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=1.0)
-ax0.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=1.0)
+ax0.plot(t, noisy_ar_s, '-y', label=label, lw=3.0)
+ax0.plot(t, est_ar_s, '-g', lw=3.0, label="Est. activation related signal")
 ax0.axhline(0.0)
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
-ax0.legend()
+ax0.legend(fontsize=15, framealpha=0.3)
 ax0.set_title("Input noisy BOLD signals, TR={0}s".format(TR), fontsize=15)
 
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
 label = "Orig. activation related signal"
-ax1.plot(t, ar_s, '-b', label=label, linewidth=1.0)
-ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=1.0)
+ax1.plot(t, ar_s, '-b', label=label, lw=3.0)
+ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal", lw=3.0)
 ax1.axhline(0.0)
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
-ax1.legend()
+ax1.legend(fontsize=15, framealpha=0.3)
 plt.grid()
 ax1.set_title("Estimated convolved signals, TR={0}s".format(TR),
               fontsize=15)
@@ -143,14 +141,13 @@ ax1.set_title("Estimated convolved signals, TR={0}s".format(TR),
 # axis 2
 ax2 = fig.add_subplot(3, 1, 3)
 label = "Orig. activation inducing signal, snr={0}dB".format(snr)
-ax2.plot(t, ai_s, '-b', label=label, linewidth=1.0)
-ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal",
-         linewidth=1.0)
+ax2.plot(t, ai_s, '-b', label=label, lw=3.0)
+ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal", lw=3.0)
 ax2.stem(t, est_i_s, '-g', label="Est. innovation signal")
 ax2.axhline(0.0)
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
-ax2.legend()
+ax2.legend(fontsize=15, framealpha=0.3)
 plt.grid()
 ax2.set_title("Estimated signals, TR={0}s".format(TR), fontsize=15)
 
@@ -162,7 +159,7 @@ print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
 # plot 2
-fig = plt.figure(2, figsize=(15, 10))
+fig = plt.figure(2, figsize=(7, 5))
 t_hrf = np.linspace(0, len(orig_hrf) * TR, len(orig_hrf))
 
 label = "Orig. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, orig_hrf))
@@ -173,9 +170,9 @@ label = "Init. HRF, FWHM={0:.2f}s".format(fwhm(t_hrf, init_hrf))
 plt.plot(t_hrf, init_hrf, '--k', label=label, lw=2)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
-plt.legend()
+plt.legend(fontsize=15, framealpha=0.3)
 plt.grid()
-plt.title("Original HRF, TR={0}s".format(TR), fontsize=20)
+plt.title("Original HRF, TR={0}s".format(TR), fontsize=15)
 
 filename = "est_hrf.png"
 filename = os.path.join(dirname, filename)
@@ -184,39 +181,13 @@ plt.savefig(filename)
 
 # plot 3
 fig = plt.figure(3, figsize=(5, 5))
-plt.plot(d['J'], linewidth=6.0)
+plt.plot(d['J'], linewidth=5.0)
 plt.xlabel("n iters")
 plt.ylabel("cost function")
 plt.grid()
 plt.title("Evolution of the cost function")
 
 filename = "cost_function.png"
-filename = os.path.join(dirname, filename)
-print("Saving plot under '{0}'".format(filename))
-plt.savefig(filename)
-
-# plot 4
-fig = plt.figure(4, figsize=(5, 5))
-plt.plot(d['r'], linewidth=6.0)
-plt.xlabel("n iters")
-plt.ylabel("residual")
-plt.grid()
-plt.title("Evolution of the residual")
-
-filename = "residual.png"
-filename = os.path.join(dirname, filename)
-print("Saving plot under '{0}'".format(filename))
-plt.savefig(filename)
-
-# plot 5
-fig = plt.figure(5, figsize=(5, 5))
-plt.plot(d['g'], linewidth=6.0)
-plt.xlabel("n iters")
-plt.ylabel("L_1 norm")
-plt.grid()
-plt.title("Evolution of the L_1 norm")
-
-filename = "l1_norm.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)

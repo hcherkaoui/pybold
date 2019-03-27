@@ -19,7 +19,7 @@ from datetime import datetime
 import numpy as np
 from pybold.data import gen_rnd_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.signal import hrf_estim as he
+from pybold.bold_signal import hrf_estim as he
 from pybold.utils import inf_norm
 
 
@@ -63,38 +63,38 @@ print("Results directory: '{0}'".format(dirname))
 
 ###############################################################################
 # plotting
-fig = plt.figure(np.random.randint(9999), figsize=(20, 10))
-label = "Est. 3 basis SPM HRF"
-plt.plot(t_hrf, est_hrf, '--r', label="Est. HRF with model 3hrf", lw=3.0)
+fig = plt.figure("HRF", figsize=(8, 4))
+label = "Est. SPM HRF"
 plt.plot(t_hrf, orig_hrf, '-b', label="Orig. HRF", lw=3.0)
+plt.plot(t_hrf, est_hrf, '--r', label="Est. HRF", lw=3.0)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
-plt.legend()
-plt.title("HRF comparison", fontsize=20)
+plt.legend(fontsize=15, framealpha=0.3)
+plt.title("HRF recovery", fontsize=15)
 filename = "est_hrf.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
-fig = plt.figure(np.random.randint(9999), figsize=(16, 8))
+fig = plt.figure("Signals", figsize=(8, 4))
 label = "Normalized noisy BOLD signal"
-plt.plot(t, inf_norm(y_tilde), '-y', label=label, linewidth=2.0)
-plt.plot(t, z, '-k', label="Block signal", linewidth=2.0)
+plt.plot(t, inf_norm(y_tilde), '-y', label=label, lw=3.0)
+plt.plot(t, z, '-k', label="Block signal", lw=3.0)
 plt.xlabel("time (s)")
 plt.ylabel("ampl.")
 plt.ylim(-2.0, 2.0)
-plt.legend()
-plt.title("Input signals, TR={0}s".format(TR), fontsize=20)
+plt.legend(fontsize=15, framealpha=0.3)
+plt.title("Input signals, TR={0}s".format(TR), fontsize=15)
 filename = "bold_signal.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
 
-fig = plt.figure(np.random.randint(9999), figsize=(20, 10))
-plt.plot(runtimes, J, linewidth=3.0)
+fig = plt.figure("Cost-function", figsize=(5, 5))
+plt.plot(runtimes, J, lw=3.0)
 plt.xlabel("times (s)")
-plt.ylabel("cost function")
-plt.title("Evolution of the cost function for model 3hrf")
+plt.ylabel("cost-function")
+plt.title("Evolution of the cost-function", fontsize=15)
 filename = "cost_function.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))

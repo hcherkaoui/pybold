@@ -39,42 +39,37 @@ noisy_ar_s, ar_s, ai_s, i_s, t, _, noise = res
 
 ###############################################################################
 # plotting
-fig = plt.figure(1, figsize=(18, 10))
+fig = plt.figure(1, figsize=(15, 7))
 
 # axis 1
 ax1 = fig.add_subplot(3, 1, 1)
 
-label = "Noisy BOLD signal, SNR={0}dB".format(snr)
-ax1.plot(t, noisy_ar_s, '-y', label=label, lw=2)
-ax1.plot(t, ar_s, '-b', label="Denoised BOLD signal", lw=2)
-
+label = "Noisy BOLD signal, SNR={0}dB, TR={0}s".format(snr, tr)
+ax1.plot(t, noisy_ar_s, '-y', label=label, lw=3)
+ax1.plot(t, ar_s, '-b', label="Denoised BOLD signal, TR={0}s".format(tr), lw=3)
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
-ax1.legend()
-ax1.set_title("Convolved signals, TR={0}s".format(tr), fontsize=20)
+ax1.legend(fontsize=15, framealpha=0.3)
 
 # axis 2
 ax2 = fig.add_subplot(3, 1, 2)
-
-ax2.plot(t, ai_s, '-r', label="Block signal", lw=2)
+ax2.plot(t, ai_s, '-r', label="Block signal", lw=3)
 ax2.stem(t, i_s, '-g', label="Dirac source signal")
-
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
 ax2.set_ylim(-1.5, 1.5)
-ax2.legend()
-ax2.set_title("Source signals, TR={0}s".format(tr), fontsize=20)
+ax2.legend(fontsize=15, framealpha=0.3)
+ax2.set_title("Source signals, TR={0}s".format(tr), fontsize=15)
 
+# axis 3
 ax3 = fig.add_subplot(3, 1, 3)
-
-ax3.plot(t_hrf, hrf, label="Original HRF", lw=2)
-
+ax3.plot(t_hrf, hrf, label="Original HRF", lw=3)
 ax3.set_xlabel("time (s)")
 ax3.set_ylabel("ampl.")
-ax3.legend()
+ax3.legend(fontsize=15, framealpha=0.3)
 title = (r"HRF, TR={0}s, FWHM={1:.2f}s, "
          "TP={2:.2f}s".format(tr, fwhm(t_hrf, hrf), tp(t_hrf, hrf)))
-ax3.set_title(title, fontsize=20)
+ax3.set_title(title, fontsize=15)
 
 plt.tight_layout()
 

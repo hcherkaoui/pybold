@@ -19,7 +19,7 @@ from datetime import datetime
 import numpy as np
 from pybold.data import gen_regular_bloc_bold
 from pybold.hrf_model import spm_hrf
-from pybold.signal import deconv
+from pybold.bold_signal import deconv
 
 
 ###############################################################################
@@ -77,69 +77,57 @@ runtimes = np.linspace(0, delta_t, len(J))
 print("Duration: {0} s".format(delta_t))
 
 est_noise = noisy_ar_s - est_ar_s
-print("noise std: {0:0.6f}, est. noise std: {1:0.6f}".format(np.std(noise), np.std(est_noise)))
-print("noise L2: {0:0.6f}, est. noise L2: {1:0.6f}".format(np.linalg.norm(noise), np.linalg.norm(est_noise)))
+print("noise std: {0:0.6f}, est. "
+      "noise std: {1:0.6f}".format(np.std(noise), np.std(est_noise)))
+print("noise L2: {0:0.6f}, est. "
+      "noise L2: {1:0.6f}".format(np.linalg.norm(noise),
+                                  np.linalg.norm(est_noise)))
 
 ###############################################################################
 # plotting
 print("Results directory: '{0}'".format(dirname))
 
 # plot 1
-fig = plt.figure(1, figsize=(20, 10))
+fig = plt.figure(1, figsize=(15, 7))
 
 # axis 1
 ax0 = fig.add_subplot(3, 1, 1)
 label = "Noisy activation related signal, snr={0}dB".format(snr)
-ax0.plot(t, noisy_ar_s, '-y', label=label, linewidth=1.0)
-ax0.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=1.0)
+ax0.plot(t, noisy_ar_s, '-y', label=label, lw=3.0)
+ax0.plot(t, est_ar_s, '-g', label="Est. activation related signal", lw=3.0)
 ax0.axhline(0.0, c='k')
 ax0.set_xlabel("time (s)")
 ax0.set_ylabel("ampl.")
-ax0.legend()
+ax0.legend(fontsize=15, framealpha=0.3)
 ax0.set_title("Input noisy BOLD signals, TR={0}s".format(TR), fontsize=15)
 
 # axis 1
 ax1 = fig.add_subplot(3, 1, 2)
 label = "Orig. activation related signal"
-ax1.plot(t, ar_s, '-b', label=label, linewidth=1.0)
-ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal",
-         linewidth=1.0)
+ax1.plot(t, ar_s, '-b', label=label, lw=3.0)
+ax1.plot(t, est_ar_s, '-g', label="Est. activation related signal", lw=3.0)
 ax1.axhline(0.0, c='k')
 ax1.set_xlabel("time (s)")
 ax1.set_ylabel("ampl.")
-ax1.legend()
+ax1.legend(fontsize=15, framealpha=0.3)
 ax1.set_title("Estimated convolved signals, TR={0}s".format(TR),
               fontsize=15)
 
 # axis 2
 ax2 = fig.add_subplot(3, 1, 3)
 label = "Orig. activation inducing signal, snr={0}dB".format(snr)
-ax2.plot(t, ai_s, '-b', label=label, linewidth=1.0)
-ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal",
-         linewidth=1.0)
-ax2.stem(t, est_i_s, '-g', label="Est. innovation signal")
+ax2.plot(t, ai_s, '-b', label=label, lw=3.0)
+ax2.plot(t, est_ai_s, '-g', label="Est. activation inducing signal", lw=3.0)
+ax2.stem(t, est_i_s, '-g', label="Est. innovation signal", lw=3.0)
 ax2.axhline(0.0, c='k')
 ax2.set_xlabel("time (s)")
 ax2.set_ylabel("ampl.")
-ax2.legend()
+ax2.legend(fontsize=15, framealpha=0.3)
 ax2.set_title("Estimated signals, TR={0}s".format(TR), fontsize=15)
 
 plt.tight_layout()
 
 filename = "bold_signal.png"
-filename = os.path.join(dirname, filename)
-print("Saving plot under '{0}'".format(filename))
-plt.savefig(filename)
-
-# plot 2
-fig = plt.figure(2, figsize=(5, 5))
-plt.plot(runtimes, J, linewidth=3.0)
-plt.xlabel("times (s)")
-plt.ylabel("residual")
-plt.title("Evolution of the residual")
-
-filename = "residual.png"
 filename = os.path.join(dirname, filename)
 print("Saving plot under '{0}'".format(filename))
 plt.savefig(filename)
