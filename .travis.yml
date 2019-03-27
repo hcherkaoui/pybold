@@ -16,13 +16,6 @@ script:
   # run tests
   - python setup.py install
   - nosetests --with-coverage
-  # run examples
-  - cd examples/
-  - python data_gen.py
-  - python hrf_estim.py
-  - python deconv.py
-  - python blind_deconv.py
-  - cd ..
 
 after_success:
   - codecov
