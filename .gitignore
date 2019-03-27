@@ -15,10 +15,13 @@
 .cache
 build
 .pytest_cache
+__pycache__
+.cachedir
 
 # ignore example results
 *results_*
 *.png
+*.pdf
 
 # ignore all type of zipped files
 *.zip
