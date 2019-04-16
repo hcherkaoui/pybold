@@ -105,7 +105,7 @@ if __name__ == '__main__':
     orig_hrf_params = 0.7
     dur_run = 3.0  # minutes
     l_snr = [1.0, 3.0, 5.0, 10.0, 15.0, 20.0]
-    n_voxels = 10
+    n_voxels = 100
     avg_dur = 12
     std_dur = 1
     nb_events = 5
